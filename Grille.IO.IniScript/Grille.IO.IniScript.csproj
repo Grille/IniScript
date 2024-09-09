@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<LangVersion>12</LangVersion>
+		<Nullable>enable</Nullable>
+		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+		<Authors>Grille</Authors>
+		<Version>0.1</Version>
+		<RootNamespace>Grille.IO</RootNamespace>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\README.md" Pack="true" PackagePath="\" Visible="false" />
+		<None Include="..\LICENSE" Pack="true" PackagePath="\" Visible="false" />
+		<InternalsVisibleTo Include="Grille.IO.IniScript_Tests" />
+	</ItemGroup>
+
+</Project>
