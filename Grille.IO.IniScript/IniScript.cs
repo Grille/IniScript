@@ -7,49 +7,58 @@ using System.Threading.Tasks;
 
 namespace Grille.IO;
 
-public class IniScript
+public class IniScript : IReadOnlyCollection<IniScriptSection>
 {
-    public Dictionary<string, IniScriptSection> Sections { get; }
+    private readonly Dictionary<string, IniScriptSection> _sections;
 
     public IniScriptSection DefaultSection { get; }
 
     public IniScriptSection ActiveSection { get; private set; }
 
-    public IniScript()
+    public int Count => _sections.Count + 1;
+
+    public IniScriptSection this[string key]
     {
-        DefaultSection = new IniScriptSection("Default");
-        ActiveSection = DefaultSection;
-        Sections = new Dictionary<string, IniScriptSection>();
+        get => _sections[key];
+        set => _sections[key] = value;
     }
 
-    public void Section(string name)
+    public IniScript()
     {
-        if (Sections.TryGetValue(name, out var section))
+        DefaultSection = new IniScriptSection("Default") { WriteName = false };
+        ActiveSection = DefaultSection;
+        _sections = new Dictionary<string, IniScriptSection>();
+    }
+
+    public IniScriptSection Section(string name)
+    {
+        if (_sections.TryGetValue(name, out var section))
         {
             ActiveSection = section;
         }
         else
         {
-            ActiveSection = Sections[name] = new IniScriptSection(name);
+            ActiveSection = _sections[name] = new IniScriptSection(name);
+        }
+        return ActiveSection;
+    }
+
+    public IEnumerable<IniScriptSection> EnumerateSections(bool includeEmpty = false)
+    {
+        yield return DefaultSection;
+        foreach (var pair in _sections)
+        {
+            yield return pair.Value;
         }
     }
 
-    public IEnumerable<IniScriptEntry> EnumerateAllSections(bool includeEmpty = false)
+    public IEnumerator<IniScriptSection> GetEnumerator()
     {
-        foreach (var pair in Sections)
-        {
-            foreach (var entry in pair.Value.Enumerate(includeEmpty))
-            {
-                yield return entry;
-            }
-        }
+        return EnumerateSections().GetEnumerator();
     }
 
-    public IEnumerable<IniScriptEntry> EnumerateActiveSection(bool includeEmpty = false)
+    IEnumerator IEnumerable.GetEnumerator()
     {
-        foreach (var entry in ActiveSection.Enumerate(includeEmpty))
-        {
-            yield return entry;
-        }
+        return GetEnumerator();
     }
 }

@@ -27,27 +27,27 @@ static class ParserTests
         var section = script.ActiveSection;
         Assert.IsEqual("Default", section.Name);
 
-        Assert.IsEqual(4, section.Entries.Count);
+        Assert.IsEqual(4, section.Count);
 
-        var entry = section.Entries[3];
+        var entry = section[3];
         Assert.IsEqual("K", entry.Key);
         Assert.IsEqual(2, entry.Indentation);
     }
 
     static void Test1()
     {
-        var script = Parse("[S]\nKey A0, A1");
+        var script = Parse("[S]\nKey A0, 0x42");
 
         var section = script.ActiveSection;
         Assert.IsEqual("S", section.Name);
 
-        Assert.IsEqual(1, section.Entries.Count);
+        Assert.IsEqual(1, section.Count);
 
-        var entry = section.Entries[0];
+        var entry = section[0];
 
         Assert.IsEqual("Key", entry.Key);
-        Assert.IsEqual("A0", entry.Args[0]);
-        Assert.IsEqual("A1", entry.Args[1]);
+        Assert.IsEqual("A0", entry.Args[0].Value);
+        Assert.IsEqual(0x42, entry.Args[1].Hex32);
     }
 
     static void Test2()

@@ -21,21 +21,15 @@ public class IniScriptSerializer
 
     public void Serialize(TextWriter writer, IniScript script)
     {
-        Serialize(writer, script.DefaultSection, false);
-        foreach (var section in script.Sections.Values)
+        foreach (var section in script)
         {
-            Serialize(writer, section, true);
+            Serialize(writer, section);
         }
     }
 
-    public void Serialize(TextWriter writer, IniScriptSection section)
+    private void Serialize(TextWriter writer, IniScriptSection section)
     {
-        Serialize(writer, section, true);
-    }
-
-    private void Serialize(TextWriter writer, IniScriptSection section, bool writeName)
-    {
-        if (writeName)
+        if (section.WriteName)
         {
             writer.Write('[');
             writer.Write(section.Name);
@@ -43,7 +37,7 @@ public class IniScriptSerializer
             writer.WriteLine();
         }
 
-        foreach (var entry in section.Entries)
+        foreach (var entry in section)
         {
             Serialize(writer, entry);
         }

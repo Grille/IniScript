@@ -58,7 +58,7 @@ public class IniScriptParser
     {
         var lines = _lexer.Tokenize(reader);
 
-        var args = new List<string>();
+        var args = new List<IniScriptArg>();
 
         for (int i = 0; i < lines.Length; i++)
         {
@@ -104,12 +104,12 @@ public class IniScriptParser
             if (key != null)
             {
                 var entry = new IniScriptEntry(key, args.ToArray(), indentation, comment);
-                script.ActiveSection.Entries.Add(entry);
+                script.ActiveSection.Add(entry);
             }
             else if (ParseEmpty)
             {
                 var entry = new IniScriptEntry(null, null, 0, comment);
-                script.ActiveSection.Entries.Add(entry);
+                script.ActiveSection.Add(entry);
             }
         }
     }
