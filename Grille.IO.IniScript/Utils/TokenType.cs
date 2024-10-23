@@ -4,13 +4,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.Utils;
+namespace Grille.IO.IniScript.Utils;
 
 internal enum TokenType
 {
     None,
-    Value,
+    Word,
+    Number,
     String,
+    InterpolatedString,
     Section,
+    Symbol,
     Comment,
 }

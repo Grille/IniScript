@@ -1,28 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.Utils;
+namespace Grille.IO.IniScript.Utils;
 
 internal class Lexer
 {
-    List<Token> tokenBuffer;
+    List<Token> _tokenBuffer;
 
-    LexerRule[] rules;
+    Rule[] _rules;
 
-    public Lexer()
+
+
+    public Lexer(Rule[] rules)
     {
-        tokenBuffer = new List<Token>();
-
-        rules = [
-            new LexerRule(TokenType.String, (a) => a.IsStringBegin(), (a) => !a.IsStringEnd()),
-            new LexerRule(TokenType.Section, (a) => a.GetChar() == '[', (a) => a.GetChar(-1) != ']'),
-            new LexerRule(TokenType.Comment, (a) => a.BeginComment(), (a) => true),
-            new LexerRule(TokenType.Value, (a) => !a.IsWhitespace(), (a) => !a.IsWhitespace()),
-        ];
+        _tokenBuffer = new List<Token>();
+        _rules = rules;
     }
 
     public Token[][] Tokenize(string text)
@@ -53,10 +50,10 @@ internal class Lexer
 
     public Token[] TokenizeLine(string text, int row)
     {
-        tokenBuffer.Clear();
-        var list = tokenBuffer;
+        _tokenBuffer.Clear();
+        var list = _tokenBuffer;
 
-        LexerRule? activeRule = null;
+        Rule? activeRule = null;
 
         int begin = 0;
 
@@ -74,7 +71,7 @@ internal class Lexer
 
             if (activeRule == null)
             {
-                foreach (var rule in rules)
+                foreach (var rule in _rules)
                 {
                     if (rule.Begin(location))
                     {
@@ -83,6 +80,11 @@ internal class Lexer
                         break;
                     }
                 }
+            }
+
+            if (activeRule == null && !location.IsWhitespace())
+            {
+                throw new InvalidDataException($"Unexpected character '{text[i]}'");
             }
 
             int length = i - begin;
@@ -107,12 +109,30 @@ internal class Lexer
 
 
 
-    record struct StringLocation(string Text, int Index, int Length)
+    public record struct StringLocation(string Text, int Index, int Length)
     {
-        public bool IsWhitespace()
+        public bool IsWord() => CharSets.IsWord(GetChar(0));
+
+        public bool IsNumber() => CharSets.IsNumber(GetChar(0));
+
+        public bool IsWordOrNumber() => CharSets.IsWordOrNumber(GetChar(0));
+
+        public bool IsWhitespace() => CharSets.IsWhitespace(GetChar(0));
+
+        public bool IsSymbol()=> CharSets.IsSymbol(GetChar(0));
+
+
+        public bool Is(char[] set)
         {
             char c = GetChar();
-            return c == ' ' || c == '\t' || c == '(' || c == ')' || c == ',' || c == ';' || c == ':' || c == '=';
+            for (int i = 0; i < set.Length; i++)
+            {
+                if (set[i] == c)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         public bool IsStringBegin()
@@ -140,5 +160,5 @@ internal class Lexer
         }
     }
 
-    record LexerRule(TokenType Type, Predicate<StringLocation> Begin, Predicate<StringLocation> Continue);
+    public record Rule(TokenType Type, Predicate<StringLocation> Begin, Predicate<StringLocation> Continue);
 }

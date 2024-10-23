@@ -4,22 +4,21 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Grille.IO.IniScript.Utils;
 
-using Grille.IO.Utils;
+namespace Grille.IO.IniScript;
 
-namespace Grille.IO;
-
-public class IniScriptSerializer
+public class Serializer
 {
     public bool FunctionStyleEnabled = true;
 
-    public void Serialize(Stream stream, IniScript script)
+    public void Serialize(Stream stream, Script script)
     {
         using var writer = new StreamWriter(stream, leaveOpen: true);
         Serialize(writer, script);
     }
 
-    public void Serialize(TextWriter writer, IniScript script)
+    public void Serialize(TextWriter writer, Script script)
     {
         foreach (var section in script)
         {
@@ -27,7 +26,7 @@ public class IniScriptSerializer
         }
     }
 
-    private void Serialize(TextWriter writer, IniScriptSection section)
+    private void Serialize(TextWriter writer, Function section)
     {
         if (section.WriteName)
         {
@@ -43,7 +42,7 @@ public class IniScriptSerializer
         }
     }
 
-    public void Serialize(TextWriter writer, IniScriptEntry entry)
+    public void Serialize(TextWriter writer, Instruction entry)
     {
         for (int i = 0; i < entry.Indentation; i++)
         {

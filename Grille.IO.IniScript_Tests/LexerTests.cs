@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Grille.ConsoleTestLib.Asserts;
+using Grille.IO.IniScript.Utils;
 
 namespace Grille.IO.CfgScript_Tests;
 
@@ -19,27 +20,28 @@ public static class LexerTests
         Section("Lexer");
 
         TestTokens("[Key]", [T(Section, "[Key]")]);
-        TestTokens("[Key] Args", [T(Section, "[Key]"), T(Value, "Args")]);
+        TestTokens("[Key] Args", [T(Section, "[Key]"), T(Word, "Args")]);
 
-        TestTokens("X", [T(Value, "X")]);
-        TestTokens("X ", [T(Value, "X")]);
-        TestTokens(" X", [T(Value, "X")]);
-        TestTokens(" X ", [T(Value, "X")]);
-        TestTokens(" X Y ", [T(Value, "X"), T(Value, "Y")]);
+        TestTokens("X", [T(Word, "X")]);
+        TestTokens("X ", [T(Word, "X")]);
+        TestTokens(" X", [T(Word, "X")]);
+        TestTokens(" X ", [T(Word, "X")]);
+        TestTokens(" X Y ", [T(Word, "X"), T(Word, "Y")]);
         
-        TestTokens("Key", [T(Value, "Key")]);
-        TestTokens("Key()", [T(Value, "Key")]);
-        TestTokens("Key() ;C", [T(Value, "Key"), T(Comment, ";C")]);
-        TestTokens("Key(aa, bb)", [T(Value, "Key"), T(Value, "aa"), T(Value, "bb")]);
-        TestTokens("Key(\"aa, bb\")", [T(Value, "Key"), T(String, "\"aa, bb\"")]);
-        TestTokens("Key(\"aa\\\"bb\")", [T(Value, "Key"), T(String, "\"aa\\\"bb\"")]);
+        TestTokens("Key", [T(Word, "Key")]);
+        TestTokens("Key()", [T(Word, "Key")]);
+        TestTokens("Key() ;C", [T(Word, "Key"), T(Comment, ";C")]);
+        TestTokens("Key(aa, bb)", [T(Word, "Key"), T(Word, "aa"), T(Word, "bb")]);
+        TestTokens("Key(\"aa, bb\")", [T(Word, "Key"), T(String, "\"aa, bb\"")]);
+        TestTokens("Key(\"aa\\\"bb\")", [T(Word, "Key"), T(String, "\"aa\\\"bb\"")]);
     }
 
     static void TestTokens(string text, Token[] tokens)
     {
         Test(text, () =>
         {
-            var lexer = new Lexer();
+            var parser = new Parser();
+            var lexer = parser._lexer;
 
             var result = lexer.Tokenize(text)[0];
 

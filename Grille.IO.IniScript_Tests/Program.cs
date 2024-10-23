@@ -12,6 +12,7 @@ internal class Program
         StringTests.Run();
         LexerTests.Run();
         ParserTests.Run();
+        CompilerTests.Run();
 
         RunTests();
     }

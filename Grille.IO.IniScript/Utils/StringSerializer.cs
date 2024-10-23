@@ -5,13 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.Utils;
+namespace Grille.IO.IniScript.Utils;
 
 internal static class StringSerializer
 {
     static readonly KeyValuePair<char, string>[] _pairs;
-
-    static readonly HashSet<char> _set;
 
     static StringSerializer()
     {
@@ -23,27 +21,13 @@ internal static class StringSerializer
             new( '\r', "\\r" ),
             new( '\t', "\\t" ),
         ];
-        _set =
-        [
-            ' ',
-            ',',
-            ';',
-            '(',
-            ')',
-            ':',
-            '=',
-        ];
-        foreach (var pair in _pairs)
-        {
-            _set.Add(pair.Key);
-        }
     }
 
     public static bool IsStringifyNecessary(string text)
     {
         for (int i = 0; i < text.Length; i++)
         {
-            if (_set.Contains(text[i]))
+            if (!CharSets.IsWordOrNumber(text[i]))
             {
                 return true;
             }
