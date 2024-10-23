@@ -27,7 +27,7 @@ internal static class StringSerializer
     {
         for (int i = 0; i < text.Length; i++)
         {
-            if (!CharSets.IsWordOrNumber(text[i]))
+            if (!CharSets.IsWord(text[i]))
             {
                 return true;
             }

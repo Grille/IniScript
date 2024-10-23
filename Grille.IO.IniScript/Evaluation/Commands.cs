@@ -29,6 +29,9 @@ public sealed class Commands
         Register("Call", (Action<Runtime, Argument>)InternalCommands.Call);
         Register("Call", (Action<Runtime, Argument[]>)InternalCommands.Call);
 
+        Register("CallPop", (Action<Runtime, Argument>)InternalCommands.Call);
+        Register("CallPop", (Action<Runtime, Argument[]>)InternalCommands.Call);
+
         Register("Push", (Action<Runtime, Argument>)InternalCommands.Push);
         Register("Pop", (Action<Runtime, Argument>)InternalCommands.Pop);
 

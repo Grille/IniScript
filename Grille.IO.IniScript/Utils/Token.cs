@@ -25,4 +25,17 @@ internal struct Token
         }
         return Value;
     }
+
+    public override string ToString()
+    {
+        return $"{Type} {Value}";
+    }
+
+    public static bool operator ==(Token left, TokenType type) => left.Type == type;
+
+    public static bool operator !=(Token left, TokenType type) => left.Type != type;
+
+    public static bool operator ==(Token left, (TokenType Type, string Value) right) => left.Type == right.Type && left.Value == right.Value;
+
+    public static bool operator !=(Token left, (TokenType Type, string Value) right) => !(left == right);
 }

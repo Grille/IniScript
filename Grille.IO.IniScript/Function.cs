@@ -10,8 +10,6 @@ public class Function : IReadOnlyCollection<Instruction>, IReadOnlyList<Instruct
 
     public string Name { get; }
 
-    public Instruction Instruction { get; }
-
     internal bool WriteName { get; set; }
 
     public int Count => _entries.Count;
@@ -22,13 +20,9 @@ public class Function : IReadOnlyCollection<Instruction>, IReadOnlyList<Instruct
         set => _entries[index] = value;
     }
 
-    public Function(string name) : this(new Instruction(name, null, 0, null)) { }
-
-    public Function(Instruction instruction)
+    public Function(string name)
     {
-        ArgumentNullException.ThrowIfNull(instruction.Key);
-        Instruction = instruction;
-        Name = instruction.Key;
+        Name = name;
         WriteName = true;
         _entries = new List<Instruction>();
     }
@@ -45,22 +39,6 @@ public class Function : IReadOnlyCollection<Instruction>, IReadOnlyList<Instruct
     public void Add(Instruction entry)
     {
         _entries.Add(entry);
-    }
-
-    public void Add(string key, Argument[]? args = null, int indentation = 0, string? comment = null)
-    {
-        var entry = new Instruction(key, args, indentation, comment);
-        _entries.Add(entry);
-    }
-
-    public void Add(string key, string[] sargs, int indentation = 0, string? comment = null)
-    {
-        var args = new Argument[sargs.Length];
-        for (int i = 0; i < args.Length; i++)
-        {
-            args[i] = sargs[i];
-        }
-        Add(key, args, indentation, comment);
     }
 
     public IEnumerable<Instruction> Enumerate(bool includeEmpty = false)

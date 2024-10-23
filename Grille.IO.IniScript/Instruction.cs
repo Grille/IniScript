@@ -12,6 +12,7 @@ public class Instruction
     public string? Key { get; }
     public Argument[]? Args { get; }
     public string? Comment { get; }
+    public int Line { get; }
     public int Indentation { get; }
 
     [MemberNotNullWhen(false, nameof(Key))]
@@ -19,11 +20,12 @@ public class Instruction
 
     public int ArgsLength => Args == null ? 0 : Args.Length;
 
-    public Instruction(string? key, Argument[]? args, int indentation = 0, string? comment = null)
+    public Instruction(string? key, Argument[]? args, int line = 0, int indentation = 0, string? comment = null)
     {
         Key = key;
         Args = args;
         Comment = comment;
+        Line = line;
         Indentation = indentation;
     }
 

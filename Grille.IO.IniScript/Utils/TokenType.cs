@@ -9,6 +9,7 @@ namespace Grille.IO.IniScript.Utils;
 internal enum TokenType
 {
     None,
+    Whitespace,
     Word,
     Number,
     String,

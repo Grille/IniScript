@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Grille.IO.IniScript.Evaluation.Compilation;
+
 namespace Grille.IO.IniScript;
 
 public class Script : IReadOnlyCollection<Function>
@@ -18,6 +20,10 @@ public class Script : IReadOnlyCollection<Function>
     public Function ActiveSection { get; private set; }
 
     public int Count => _sections.Count + 1;
+
+    private CompiledScript? _compiled;
+
+    public bool IsCompiled => _compiled != null;
 
     public Function this[string key]
     {
@@ -41,6 +47,7 @@ public class Script : IReadOnlyCollection<Function>
         else
         {
             ActiveSection = _sections[name] = new Function(name);
+            _compiled = null;
         }
         return ActiveSection;
     }
@@ -49,6 +56,7 @@ public class Script : IReadOnlyCollection<Function>
     {
         _sections.Add(func.Name, func);
         ActiveSection = func;
+        _compiled = null;
     }
 
     public bool ContainsKey(string key) => _sections.ContainsKey(key);

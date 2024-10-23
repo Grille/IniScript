@@ -7,7 +7,8 @@ internal class Program
 {
     static void Main(string[] args)
     {
-        RunAsync = true;
+        RunAsync = false;
+        //ExecuteImmediately = true;
 
         StringTests.Run();
         LexerTests.Run();

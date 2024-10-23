@@ -6,19 +6,20 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using static Grille.IO.IniScript.Utils.Lexer;
+
 namespace Grille.IO.IniScript.Utils;
 
 internal class Lexer
 {
-    List<Token> _tokenBuffer;
-
-    Rule[] _rules;
-
-
+    readonly List<Token[]> _lineBuffer;
+    readonly List<Token> _tokenBuffer;
+    readonly Rule[] _rules;
 
     public Lexer(Rule[] rules)
     {
         _tokenBuffer = new List<Token>();
+        _lineBuffer = new List<Token[]>();
         _rules = rules;
     }
 
@@ -30,7 +31,7 @@ internal class Lexer
 
     public Token[][] Tokenize(TextReader reader)
     {
-        var lines = new List<Token[]>();
+        _lineBuffer.Clear();
 
         int row = 0;
 
@@ -40,34 +41,39 @@ internal class Lexer
             if (line == null) break;
 
             var tokens = TokenizeLine(line, row);
-            lines.Add(tokens);
+            _lineBuffer.Add(tokens);
 
             row += 1;
         }
 
-        return lines.ToArray();
+        return _lineBuffer.ToArray();
     }
 
     public Token[] TokenizeLine(string text, int row)
     {
         _tokenBuffer.Clear();
-        var list = _tokenBuffer;
 
         Rule? activeRule = null;
 
         int begin = 0;
 
-        void YieldToken(int length)
+        for (int i = 0; i <= text.Length; i++)
         {
-            var subtext = text.Substring(begin, length);
-            var token = new Token() { Type = activeRule.Type, Value = subtext, Row = row, Column = begin };
-            list.Add(token);
-            activeRule = null;
-        }
+            bool eol = i == text.Length;
 
-        for (int i = 0; i < text.Length; i++)
-        {
-            var location = new StringLocation(text, i, 0);
+            int length = i - begin;
+            var location = new StringLocation(text, i, length);
+
+            if (activeRule != null)
+            {
+                if (!activeRule.Continue(location) || eol)
+                {
+                    var subtext = text.Substring(begin, length);
+                    var token = new Token() { Type = activeRule.Type, Value = subtext, Row = row, Column = begin };
+                    _tokenBuffer.Add(token);
+                    activeRule = null;
+                }
+            }
 
             if (activeRule == null)
             {
@@ -82,40 +88,24 @@ internal class Lexer
                 }
             }
 
-            if (activeRule == null && !location.IsWhitespace())
+            if (!eol && activeRule == null)
             {
                 throw new InvalidDataException($"Unexpected character '{text[i]}'");
             }
-
-            int length = i - begin;
-            location = new StringLocation(text, i, length);
-
-            if (activeRule != null)
-            {
-                if (!activeRule.Continue(location))
-                {
-                    YieldToken(length);
-                }
-            }
         }
 
-        if (activeRule != null)
-        {
-            YieldToken(text.Length - begin);
-        }
-
-        return list.ToArray();
+        return _tokenBuffer.ToArray();
     }
 
 
 
     public record struct StringLocation(string Text, int Index, int Length)
     {
+        public bool IsLetter() => CharSets.IsLetter(GetChar(0));
+
+        public bool IsDigit() => CharSets.IsDigit(GetChar(0));
+
         public bool IsWord() => CharSets.IsWord(GetChar(0));
-
-        public bool IsNumber() => CharSets.IsNumber(GetChar(0));
-
-        public bool IsWordOrNumber() => CharSets.IsWordOrNumber(GetChar(0));
 
         public bool IsWhitespace() => CharSets.IsWhitespace(GetChar(0));
 
@@ -145,6 +135,16 @@ internal class Lexer
             return GetChar(-2) != '\\' && GetChar(-1) == '"' && Length > 1;
         }
 
+        public bool IsIStringBegin()
+        {
+            return GetChar(0) == '$' && GetChar(1) == '"';
+        }
+
+        public bool IsIStringEnd()
+        {
+            return GetChar(-2) != '\\' && GetChar(-1) == '"' && Length > 2;
+        }
+
         public bool BeginComment()
         {
             var char0 = GetChar(0);
@@ -160,5 +160,8 @@ internal class Lexer
         }
     }
 
-    public record Rule(TokenType Type, Predicate<StringLocation> Begin, Predicate<StringLocation> Continue);
+    public record Rule(TokenType Type, Predicate<StringLocation> Begin, Predicate<StringLocation> Continue)
+    {
+        public Rule(TokenType Type, Predicate<StringLocation> Begin) : this(Type, Begin, Begin) { }
+    }
 }
