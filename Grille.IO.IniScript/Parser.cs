@@ -1,211 +1,137 @@
-﻿using System;
-using System.IO;
+﻿using Grille.IO.IniScript;
+
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.ComponentModel;
-using Grille.IO.IniScript.Utils;
-
-using static Grille.IO.IniScript.Utils.TokenType;
 
 namespace Grille.IO.IniScript;
 
-public class Parser
+using Utils;
+
+using static Utils.TokenType;
+
+
+internal class Parser                     
 {
-    internal Lexer _lexer;
+    private readonly Signature _sectionSignature0;
+    private readonly Signature _sectionSignature1;
 
     public int TabSize { get; set; } = 4;
 
-    public bool ParseEmpty { get; set; }
+    public bool ParseEmpty { get; set; } = true;
 
-    public Parser()
+    internal Parser()
     {
-        var rules = new Lexer.Rule[] {
-            new Lexer.Rule(TokenType.Whitespace, (a) => a.IsWhitespace()),
-            new Lexer.Rule(TokenType.String, (a) => a.IsStringBegin(), (a) => !a.IsStringEnd()),
-            new Lexer.Rule(TokenType.InterpolatedString, (a) => a.IsIStringBegin(), (a) => !a.IsIStringEnd()),
-            new Lexer.Rule(TokenType.Section, (a) => a.GetChar() == '[', (a) => a.GetChar(-1) != ']'),
-            new Lexer.Rule(TokenType.Comment, (a) => a.BeginComment(), (a) => true),
-            new Lexer.Rule(TokenType.Symbol, (a) => a.IsSymbol(), (a) => false),
-            new Lexer.Rule(TokenType.Word, (a) => a.IsLetter(), (a) => a.IsWord()),
-            new Lexer.Rule(TokenType.Number, (a) => a.IsDigit(), (a) => a.IsWord()),
-        };
-
-        _lexer = new Lexer(rules);
-        ParseEmpty = true;
+        _sectionSignature0 = Signature.New().OpeningBracket('[').Parameter().ClosingBracket();
+        _sectionSignature1 = Signature.New().OpeningBracket('[').Parameter().ClosingBracket().Symbol(':').Parameter();
     }
 
-    public Script Parse(string text)
+    public ScriptCreationObject Parse(string text)
     {
-        var script = new Script();
+        var script = new ScriptCreationObject();
         Parse(text, script);
         return script;
     }
 
-    public Script Parse(Stream stream)
+    public ScriptCreationObject Parse(Stream stream)
     {
-        var script = new Script();
+        var script = new ScriptCreationObject();
         Parse(stream, script);
         return script;
     }
 
-    public Script Parse(TextReader reader)
+    public ScriptCreationObject Parse(TextReader reader)
     {
-        var script = new Script();
+        var script = new ScriptCreationObject();
         Parse(reader, script);
         return script;
     }
 
-    public void Parse(string text, Script script)
+    public void Parse(TextReader reader, ScriptCreationObject script)
     {
-        using var reader = new StringReader(text);
-        Parse(reader, script);
+        var text = reader.ReadToEnd();
+        Parse(text, script);
     }
 
-    public void Parse(Stream stream, Script script)
+    public void Parse(Stream stream, ScriptCreationObject script)
     {
         using var reader = new StreamReader(stream, leaveOpen: true);
         Parse(reader, script);
     }
 
-    public void Parse(TextReader reader, Script script)
+
+    public void Parse(string text, ScriptCreationObject script)
     {
-        var lines = _lexer.Tokenize(reader);
+        var tokens = ParserLexer.Lexer.Tokenize(text);
 
-        for (int i = 0; i < lines.Length; i++)
+        for (int i = 0; i < tokens.LineCount; i++)
         {
-            var line = lines[i];
-            if (line.Length == 0)
+            var line = tokens.GetLine(i);
+            if (line.Length > 1)
             {
-                continue;
+                ParseLine(line, script);
             }
-
-            ParseLine(lines[i], script);
         }
     }
 
-    void ParseLine(Token[] tokens, Script script)
+    void ParseLine(ReadOnlySpan<Token> tokens, ScriptCreationObject script)
     {
-        int index = 0;
-        int line = tokens[0].Row;
-        int indentation = tokens[0].Column;
+        int line = tokens[0].Location.Row;
+        int indentation = tokens[0].Location.Column;
 
-        string? comment = null;
+        var comments = new List<string>();
         var purgedList = new List<Token>();
 
-        bool isFunctionDefinition = false;
-        bool isAssignment = false;
-        bool isAssignmentCall = false;
-
-        Instruction Instruction(string key, Argument[] args) => new Instruction(key, args, line, indentation, comment);
-
-        while (index < tokens.Length)
+        for (int i = 0; i < tokens.Length; i++)
         {
-            var token = tokens[index++];
-            if (token == Whitespace || token == (Symbol, ")"))
+            var token = tokens[i];
+            if (token == Whitespace)
             {
-                if (index == 1)
+                if (i == 0)
                 {
-                    indentation = GetIndentation(token.Value);
+                    indentation = GetIndentation(token);
                 }
                 continue;
             }
             else if (token == Comment)
             {
-                comment = token.Value;
+                comments.Add(token);
                 continue;
             }
-
-            int position = purgedList.Count;
-            if (position == 0)
-            {
-                if (token == Section)
-                {
-                    isFunctionDefinition = true;
-                }
-            }
-            else if (position == 1)
-            {
-                if (token == (Symbol, "="))
-                {
-                    isAssignment = true;
-                    continue;
-                }
-            }
-            else if (position == 2)
-            {
-                if (isAssignment && token == (Symbol, "("))
-                {
-                    isAssignmentCall = true;
-                    continue;
-                }
-            }
-            else if (token == (Symbol, "("))
+            else if (token == EndOfLine || token == EndOfFile)
             {
                 continue;
             }
-
             purgedList.Add(token);
         }
 
-        if (isFunctionDefinition)
-        {
-            script.Section(purgedList[0].GetStringValue());
-            for (int i = 1; i < purgedList.Count; i++)
-            {
-                var instruction0 = Instruction("Pop", [purgedList[i].Value]);
-                script.ActiveSection.Add(instruction0);
-            }
-        }
-        else if (isAssignmentCall)
-        {
-            var args = new Argument[purgedList.Count - 1];
-            for (int i = 0; i < args.Length; i++)
-            {
-                args[i] = purgedList[i + 1].Value;
-            }
+        var purgedArray = purgedList.ToArray();
 
-            var instruction0 = Instruction("Call", args);
-            var instruction1 = Instruction("Pop", [purgedList[0].Value]);
-            script.ActiveSection.Add(instruction0);
-            script.ActiveSection.Add(instruction1);
-        }
-        else if (isAssignment)
+        if (_sectionSignature0.Matches(purgedArray))
         {
-            var instruction = Instruction("Set", [purgedList[0].Value, purgedList[1].Value]);
-            script.ActiveSection.Add(instruction);
+            var args = _sectionSignature0.ExtractArguments(purgedArray);
+            var name = args[0].Literal;
+            script.GetSection(name);
+        }
+        else if (_sectionSignature1.Matches(purgedArray))
+        {
+            var args = _sectionSignature1.ExtractArguments(purgedArray);
+            var name = args[0].Literal;
+            var parentName = args[1].Literal;
+            script.GetSection(name, parentName);
         }
         else
         {
-            if (purgedList.Count == 0)
-            {
-                return;
-            }
-
-            string key = purgedList[0].Value;
-            var args = new Argument[purgedList.Count - 1];
-            for (int i = 0; i < purgedList.Count - 1; i++)
-            {
-                args[i] = purgedList[i + 1].Value;
-            }
-
-            var instruction = Instruction(key, args);
-            script.ActiveSection.Add(instruction);
+            var location = new InstructionLocation(line, indentation);
+            script.CurrentSection.Add(new InstructionInfo(purgedArray, location, comments.ToArray()));
         }
     }
 
-    void ParseFunctionDefinition(Token[] tokens, int indentation, Script script)
-    {
-
-    }
-
-    void ParseInstruction(Token[] tokens, int indentation, Script script)
-    {
-
-    }
-
-    private int GetIndentation(string text)
+    private int GetIndentation(ReadOnlySpan<char> text)
     {
         int count = 0;
         for (int i = 0; i < text.Length; i++)

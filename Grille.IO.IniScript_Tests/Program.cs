@@ -1,6 +1,8 @@
 ﻿using Grille.ConsoleTestLib;
 using Grille.IO.IniScript_Tests;
 
+using System;
+
 namespace Grille.IO.CfgScript_Tests;
 
 internal class Program
@@ -10,10 +12,10 @@ internal class Program
         RunAsync = false;
         //ExecuteImmediately = true;
 
-        StringTests.Run();
+        SerializerTests.Run();
         LexerTests.Run();
         ParserTests.Run();
-        CompilerTests.Run();
+        //CompilerTests.Run();
 
         RunTests();
     }

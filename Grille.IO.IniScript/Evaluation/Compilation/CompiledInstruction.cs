@@ -4,21 +4,29 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript.Evaluation.Compilation;
+namespace Grille.IO.IniScript.Evaluation.Compilation; 
 
-public struct CompiledInstruction
+public class CompiledInstruction
 {
-    public readonly int IndentedBlockSize;
-    public readonly Action<Runtime> Action;
+    private readonly Command _command;
+    private readonly Argument[] _arguments;
 
-    internal CompiledInstruction(Action<Runtime> action, int blockSize = 0)
+    public int BlockSize { get; }
+
+    internal CompiledInstruction(Command command, Argument[] arguments, int blockSize = 0)
     {
-        Action = action;
-        IndentedBlockSize = blockSize;
+        _command = command;
+        _arguments = arguments;
+        BlockSize = blockSize;
     }
 
     public void Invoke(Runtime runtime)
     {
-        Action(runtime);
+        var values = new object[_arguments.Length];
+        for (int i = 0; i < values.Length; i++)
+        {
+            values[i] = runtime.CastArgument(_arguments[i], _command.ParameterTypes[i]);
+        }
+        _command.Invoke(runtime, values);
     }
 }

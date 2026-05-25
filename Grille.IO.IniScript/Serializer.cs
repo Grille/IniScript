@@ -12,13 +12,14 @@ public class Serializer
 {
     public bool FunctionStyleEnabled = true;
 
-    public void Serialize(Stream stream, Script script)
+    /*
+    public void Serialize(Stream stream, ScriptCreationObject script)
     {
         using var writer = new StreamWriter(stream, leaveOpen: true);
         Serialize(writer, script);
     }
 
-    public void Serialize(TextWriter writer, Script script)
+    public void Serialize(TextWriter writer, ScriptCreationObject script)
     {
         foreach (var section in script)
         {
@@ -42,9 +43,11 @@ public class Serializer
         }
     }
 
-    public void Serialize(TextWriter writer, Instruction entry)
+    public void Serialize(TextWriter writer, InstructionInfo entry)
     {
-        for (int i = 0; i < entry.Indentation; i++)
+    */
+        /*
+        for (int i = 0; i < entry.Location.Indentation; i++)
         {
             writer.Write(' ');
         }
@@ -53,9 +56,9 @@ public class Serializer
         {
             writer.Write(entry.Key);
 
-            for (var i = 0; i < entry.Args.Length; i++)
+            for (var i = 0; i < entry.Arguments.Length; i++)
             {
-                var arg = entry.Args[i];
+                var arg = entry.Arguments[i];
                 writer.Write(' ');
                 if (StringSerializer.IsStringifyNecessary(arg))
                 {
@@ -68,11 +71,12 @@ public class Serializer
             }
         }
 
-        if (entry.Comment != null)
+        if (entry.Comments != null)
         {
-            writer.Write(entry.Comment);
+            writer.Write(entry.Comments);
         }
 
         writer.WriteLine();
-    }
+        */
+    //}
 }

@@ -1,23 +1,38 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Grille.IO.IniScript.Evaluation;
 
-public class Scope
+public sealed class Scope
 {
+    private readonly Dictionary<string, object> _dict;
+
     public string Name { get; }
 
     public Scope? Parent { get; }
 
     public int InstructionPointer { get; set; }
 
-    Dictionary<string, Argument> _dict;
+    [MemberNotNullWhen(false, nameof(Parent))]
+    public bool IsRoot => Parent == null;
 
-    public Scope(Scope? parent, string name)
+    private string? _fullName;
+
+    public string FullName { 
+        get
+        {
+            if (_fullName != null) return _fullName;
+            if (IsRoot || Parent.IsRoot) return Name;
+            return $"{Parent.FullName}.{Name}";
+        }
+    }
+
+    internal Scope(Scope? parent, string name)
     {
         Parent = parent;
         Name = name;
@@ -25,21 +40,29 @@ public class Scope
         _dict = new();
     }
 
-    public Argument GetVariable(string key)
+    public bool TryGetValue(string key, out object value)
     {
-        if (_dict.TryGetValue(key, out var value))
-        {
-            return value;
-        }
-        else if (Parent != null)
-        {
-            return Parent.GetVariable(key);
-        }
-        throw new KeyNotFoundException();
+        if (_dict.TryGetValue(key, out value!)) return true;
+        if (Parent != null) return Parent.TryGetValue(key, out value);
+        return false;
     }
 
-    public void SetVariable(string key, Argument obj)
+    public bool ContainsKey(string key) => TryGetValue(key, out var _);
+
+    private object Get(string key)
     {
-        _dict[key] = obj;
+        if (TryGetValue(key, out var value)) return value;
+        throw new KeyNotFoundException();
+    }
+    private void Set(string key, object value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        _dict[key] = value;
+    }
+
+    public object this[string key]
+    {
+        get => Get(key);
+        set => Set(key, value);
     }
 }

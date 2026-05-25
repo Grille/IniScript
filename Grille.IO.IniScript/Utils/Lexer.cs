@@ -1,167 +1,143 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using static Grille.IO.IniScript.Utils.Lexer;
 
 namespace Grille.IO.IniScript.Utils;
 
 internal class Lexer
 {
-    readonly List<Token[]> _lineBuffer;
-    readonly List<Token> _tokenBuffer;
-    readonly Rule[] _rules;
+    readonly LexerRule[] _rules;
 
-    public Lexer(Rule[] rules)
+    public Lexer(LexerRule[] rules)
     {
-        _tokenBuffer = new List<Token>();
-        _lineBuffer = new List<Token[]>();
         _rules = rules;
     }
 
-    public Token[][] Tokenize(string text)
+    public TokenList Tokenize(Stream stream, bool leaveOpen = false)
     {
-        using var reader = new StringReader(text);
+        using var reader = new StreamReader(stream, leaveOpen: leaveOpen);
         return Tokenize(reader);
     }
 
-    public Token[][] Tokenize(TextReader reader)
+    public TokenList Tokenize(TextReader reader)
     {
-        _lineBuffer.Clear();
+        var text = reader.ReadToEnd();
+        return Tokenize(text);
+    }
 
-        int row = 0;
+    public TokenList Tokenize(string text) 
+    {
+        var tokens = new List<Token>();
+        var lines = new List<Range>();
+        int textIndex = 0;
+        int lineIndex = 0;
+
+        while (true) 
+        {
+            lines.Add(TokenizeLine(tokens, text, ref lineIndex, ref textIndex));
+            if (tokens[^1].Type == TokenType.EndOfFile) break;
+        }
+
+        return new TokenList(tokens.ToArray(), lines.ToArray());
+    }
+
+    private struct LineCounter
+    {
+        private readonly string _text;
+        private int _tokenLength;
+
+        public int Row;
+        public int Column;
+
+        public TokenLocation Location => new(Row, Column);
+
+        public LineCounter(string text, int row)
+        {
+            _text = text;
+            Row = row ;
+            Column = 0;
+        }
+
+        public void Update(int index)
+        {
+            var ctx = new LexerRuleContext(_text, index, _tokenLength);
+            if (ctx.IsEndOfLine())
+            {
+                _tokenLength += 1;
+            }
+            else if (_tokenLength > 0)
+            {
+                Row += 1;
+                Column = -1;
+                _tokenLength = 0;
+            }
+            Column += 1;
+        }
+    }
+
+    private LexerRule? BeginNew(LexerRuleContext ctx)
+    {
+        foreach (var rule in _rules)
+        {
+            if (rule.Begin(ctx))
+            {
+                return rule;
+            }
+        }
+        return null;
+    }
+
+    private Range TokenizeLine(List<Token> tokens, string text, ref int lineIndex, ref int textIndex)
+    {
+        var lineCounter = new LineCounter(text, lineIndex);
+        var location = TokenLocation.Empty;
+
+        LexerRule? activeRule = null;
+
+        int lineStart = tokens.Count;
+
+        int index = textIndex;
+        int begin = textIndex;
+        bool isEndOfFile = false;
 
         while (true)
         {
-            var line = reader.ReadLine();
-            if (line == null) break;
-
-            var tokens = TokenizeLine(line, row);
-            _lineBuffer.Add(tokens);
-
-            row += 1;
-        }
-
-        return _lineBuffer.ToArray();
-    }
-
-    public Token[] TokenizeLine(string text, int row)
-    {
-        _tokenBuffer.Clear();
-
-        Rule? activeRule = null;
-
-        int begin = 0;
-
-        for (int i = 0; i <= text.Length; i++)
-        {
-            bool eol = i == text.Length;
-
-            int length = i - begin;
-            var location = new StringLocation(text, i, length);
+            isEndOfFile = index == text.Length;
+            lineCounter.Update(index);
 
             if (activeRule != null)
             {
-                if (!activeRule.Continue(location) || eol)
+                int length = index - begin;
+                var ctx = new LexerRuleContext(text, index, length);
+                if (!activeRule.Continue(ctx) || isEndOfFile)
                 {
-                    var subtext = text.Substring(begin, length);
-                    var token = new Token() { Type = activeRule.Type, Value = subtext, Row = row, Column = begin };
-                    _tokenBuffer.Add(token);
+                    var token = new Token(text, begin, length, activeRule.Type, location);
+                    tokens.Add(token);
                     activeRule = null;
+                    if (token == TokenType.EndOfLine) break;
                 }
             }
 
+            if (isEndOfFile)
+            {
+                tokens.Add(new Token(TokenType.EndOfFile, lineCounter.Location));
+                break;
+            }
             if (activeRule == null)
             {
-                foreach (var rule in _rules)
-                {
-                    if (rule.Begin(location))
-                    {
-                        activeRule = rule;
-                        begin = i;
-                        break;
-                    }
-                }
+                location = lineCounter.Location;
+                var ctx = new LexerRuleContext(text, index, 0);
+                if ((activeRule = BeginNew(ctx)) != null) begin = index;
+                else throw new UnexpectedTokenException(text[index], location);
             }
 
-            if (!eol && activeRule == null)
-            {
-                throw new InvalidDataException($"Unexpected character '{text[i]}'");
-            }
+            index += 1;
         }
 
-        return _tokenBuffer.ToArray();
-    }
+        textIndex = index;
+        lineIndex = lineCounter.Row;
 
-
-
-    public record struct StringLocation(string Text, int Index, int Length)
-    {
-        public bool IsLetter() => CharSets.IsLetter(GetChar(0));
-
-        public bool IsDigit() => CharSets.IsDigit(GetChar(0));
-
-        public bool IsWord() => CharSets.IsWord(GetChar(0));
-
-        public bool IsWhitespace() => CharSets.IsWhitespace(GetChar(0));
-
-        public bool IsSymbol()=> CharSets.IsSymbol(GetChar(0));
-
-
-        public bool Is(char[] set)
-        {
-            char c = GetChar();
-            for (int i = 0; i < set.Length; i++)
-            {
-                if (set[i] == c)
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public bool IsStringBegin()
-        {
-            return GetChar() == '"';
-        }
-
-        public bool IsStringEnd()
-        {
-            return GetChar(-2) != '\\' && GetChar(-1) == '"' && Length > 1;
-        }
-
-        public bool IsIStringBegin()
-        {
-            return GetChar(0) == '$' && GetChar(1) == '"';
-        }
-
-        public bool IsIStringEnd()
-        {
-            return GetChar(-2) != '\\' && GetChar(-1) == '"' && Length > 2;
-        }
-
-        public bool BeginComment()
-        {
-            var char0 = GetChar(0);
-            var char1 = GetChar(1);
-
-            return char0 == ';' || char0 == '#' || char0 == '/' && char1 == '/';
-        }
-
-        public char GetChar(int offset = 0)
-        {
-            int index = Index + offset;
-            return index >= 0 && index < Text.Length ? Text[index] : '\0';
-        }
-    }
-
-    public record Rule(TokenType Type, Predicate<StringLocation> Begin, Predicate<StringLocation> Continue)
-    {
-        public Rule(TokenType Type, Predicate<StringLocation> Begin) : this(Type, Begin, Begin) { }
+        int lineEnd = tokens.Count;
+        return new(lineStart, lineEnd);
     }
 }

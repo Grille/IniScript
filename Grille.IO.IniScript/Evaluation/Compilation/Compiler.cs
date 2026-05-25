@@ -7,14 +7,14 @@ using System.Threading.Tasks;
 
 namespace Grille.IO.IniScript.Evaluation.Compilation;
 
-public class Compiler
+public sealed class Compiler
 {
     readonly Parser _parser;
     readonly List<CompiledFunction> _functions;
     readonly List<CompiledInstruction> _instructions;
-    readonly Commands _commands;
+    readonly CommandRegistry _commands;
 
-    public Compiler(Commands commands)
+    public Compiler(CommandRegistry commands)
     {
         _commands = commands;
         _parser = new();
@@ -22,17 +22,12 @@ public class Compiler
         _instructions = new();
     }
 
-    public Compiler(Commands commands, Parser parser)
+    internal Compiler(CommandRegistry commands, Parser parser)
     {
         _commands = commands;
         _parser = parser;
         _functions = new();
         _instructions = new();
-    }
-
-    protected virtual Instruction? InstructionPreview(Instruction instruction)
-    {
-        return instruction;
     }
 
     public CompiledScript Compile(string script) => Compile(_parser.Parse(script));
@@ -41,11 +36,11 @@ public class Compiler
     
     public CompiledScript Compile(TextReader script) => Compile(_parser.Parse(script));
 
-    public CompiledScript Compile(Script script)
+    internal CompiledScript Compile(ScriptCreationObject script)
     {
         _functions.Clear();
 
-        foreach (var func in script)
+        foreach (var func in script.Values)
         {
             _functions.Add(Compile(func));
         }
@@ -55,7 +50,7 @@ public class Compiler
         return new CompiledScript(functions);
     }
 
-    public CompiledFunction Compile(Function func)
+    internal CompiledFunction Compile(ScriptCreationObject.Section func)
     {
         _instructions.Clear();
 
@@ -63,31 +58,32 @@ public class Compiler
 
         for (int i = 0; i < func.Count; i++)
         {
-            var inst = InstructionPreview(func[i]);
+            var inst = func[i];
             if (inst != null && !inst.IsEmpty)
             {
-                var action = _commands.GetAction(inst);
-                var instruction = new CompiledInstruction(action, blockSize[i]);
+                var pair = _commands.GetPair(inst.Tokens);
+                var args = pair.Signature.ExtractArguments(inst.Tokens);
+                var instruction = new CompiledInstruction(pair.Command, args, blockSize[i]);
                 _instructions.Add(instruction);
             }
         }
 
-        var instructions = _instructions.ToArray();
+        var instructionsArray = _instructions.ToArray();
 
-        return new CompiledFunction(func.Name, instructions);
+        return new CompiledFunction(func.Key, instructionsArray);
     }
 
-    private int GetBlockSize(Function func, int thisIndex)
+    private int GetBlockSize(ScriptCreationObject.Section func, int thisIndex)
     {
         var thisInstruction = func[thisIndex];
-        var thisIndentation = thisInstruction.Indentation;
+        var thisIndentation = thisInstruction.Location.Indentation;
 
         int nextIndex = thisIndex + 1;
 
         while (nextIndex < func.Count)
         {
             var nextInstruction = func[nextIndex];
-            var nextIndentation = thisInstruction.Indentation;
+            var nextIndentation = thisInstruction.Location.Indentation;
 
             if (nextIndentation <= thisIndentation && !nextInstruction.IsEmpty)
             {
@@ -100,7 +96,7 @@ public class Compiler
         return nextIndex - thisIndex - 1;
     }
 
-    private int[] GetBlockSizes(Function func)
+    private int[] GetBlockSizes(ScriptCreationObject.Section func)
     {
         int[] blockSize = new int[func.Count];
 

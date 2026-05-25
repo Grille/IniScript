@@ -5,132 +5,86 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Grille.IO.IniScript.Utils;
+using Grille.IO.IniScript.Evaluation;
+
 namespace Grille.IO.IniScript;
 
-public struct Argument
-{
-    public static CultureInfo Culture = CultureInfo.InvariantCulture;
+public sealed class Argument
+{ 
+    public char Modifier { get; }
 
-    public object Value;
+    public string Literal { get; }
 
-    public Argument(object value)
+    public Argument? Indexer { get; }
+
+    public object? ConstValue { get; }
+
+    private Argument(string literal, TokenType type, char modifier, Argument? indexer = null)
     {
-        Value = value;
+        Literal = literal;
+        Modifier = modifier;
+        Indexer = indexer;
+        ConstValue = ParseConstValue(type);
     }
 
-    public string Text
+    private object? ParseConstValue(TokenType type)
     {
-        get
+        if (type == TokenType.Number) return NumberSerializer.Deserialize(Literal).ToObject();
+        if (type == TokenType.LiteralString) return StringSerializer.Deserialize(Literal);
+        if (type == TokenType.InterpolatedString) throw new NotImplementedException();
+        return null;
+    }
+
+    internal static bool Skip(ref TokenReader tokens)
+    {
+        var token = tokens.Next();
+        if (token.Type == TokenType.Symbol)
         {
-            var text = Value.ToString();
-            return text == null ? string.Empty : text;
+            token = tokens.Next();
         }
-        set
+        if (!token.Type.IsParameter) return false;
+        if (token.Type == TokenType.Word)
         {
-            Value = value;
+            var peek = tokens.Peek();
+            if (peek != (TokenType.Bracket, "[")) return true;
+            tokens.Position += 1;
+            if (!Skip(ref tokens)) return false;
+            token = tokens.Next();
+            if (peek != (TokenType.Bracket, "]")) return false;
         }
+        return true;
     }
 
-    public bool IsBoolean => true;
-
-    public bool Boolean
+    internal static Argument Parse(ref TokenReader tokens)
     {
-        get
+        var token = tokens.Next();
+        char modifier = '\0';
+        if (token.Type == TokenType.Symbol)
         {
-            if (Value is bool b) return b;
-            var text = Text.Trim().ToLower();
-            if (text == "1" || text == "true") return true;
-            return false;
+            modifier = token.AsSpan()[0];
+            token = tokens.Next();
         }
-        set
+        if (!token.Type.IsParameter) throw new UnexpectedTokenException(token);
+        var literal = token.Substring();
+        var type = token.Type;
+
+        if (token == TokenType.Word)
         {
-            Value = value;
+            var peek = tokens.Peek();
+            if (peek != (TokenType.Bracket, "["))
+            {
+                return new Argument(literal, type, modifier);
+            }
+            tokens.Position += 1;
+            var indexer = Parse(ref tokens);
+            token = tokens.Next();
+            if (token != (TokenType.Bracket, "]"))
+            {
+                throw new UnexpectedTokenException(token);
+            }
+            return new Argument(literal, type, modifier, indexer);
         }
+        return new Argument(literal, type, modifier);
     }
-
-
-    public bool IsSingle => float.TryParse(Text, NumberStyles.Any, Culture, out _);
-
-    public float Single
-    {
-        set => Text = value.ToString(Culture);
-        get => float.Parse(Text, Culture);
-    }
-
-
-    public bool IsDouble => double.TryParse(Text, NumberStyles.Any, Culture, out _);
-
-    public double Double
-    {
-        set => Text = value.ToString(Culture);
-        get => double.Parse(Text, Culture);
-    }
-
-
-    public bool IsDecimal => decimal.TryParse(Text, NumberStyles.Any, Culture, out _);
-
-    public decimal Decimal
-    {
-        set => Text = value.ToString(Culture);
-        get => decimal.Parse(Text, Culture);
-    }
-
-
-    public bool IsInt64 => long.TryParse(Text, NumberStyles.Integer, Culture, out _);
-
-    public long Int64
-    {
-        set => Text = value.ToString(Culture);
-        get => long.Parse(Text, Culture);
-    }
-
-
-    public bool IsHex64 => TryParseHex64(Text, out _);
-
-    public long Hex64
-    {
-        set => Text = value.ToString(Culture);
-        get => ParseHex64(Text);
-    }
-
-    public bool IsInt32 => int.TryParse(Text, NumberStyles.Integer, Culture, out _);
-
-    public int Int32
-    {
-        set => Text = value.ToString(Culture);
-        get => int.Parse(Text, Culture);
-    }
-
-
-    public bool IsHex32 => TryParseHex64(Text, out _);
-
-    public int Hex32
-    {
-        set => Text = value.ToString(Culture);
-        get => (int)ParseHex64(Text);
-    }
-
-    static bool TryParseHex64(string value, out long number)
-    {
-        if (value.StartsWith("0x", true, Culture))
-        {
-            value = value.Substring(2);
-        }
-        return long.TryParse(value, NumberStyles.HexNumber, Culture, out number);
-    }
-
-    static long ParseHex64(string value)
-    {
-        TryParseHex64(value, out long number);
-        return number;
-    }
-
-    public T As<T>()
-    {
-        return (T)Value;
-    }
-
-
-    public static implicit operator string(Argument value) => value.Text;
-    public static implicit operator Argument(string value) => new Argument() { Text = value };
 }

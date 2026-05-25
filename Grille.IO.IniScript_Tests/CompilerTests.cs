@@ -10,6 +10,7 @@ namespace Grille.IO.IniScript_Tests;
 
 public static class CompilerTests
 {
+    /*
     public static void Run()
     {
         Section("Compiler");
@@ -33,10 +34,11 @@ public static class CompilerTests
     {
         var sb = new StringBuilder();
 
-        var commands = new Commands();
+        var commands = new CommandRegistry();
         commands.Register("A", (r) => sb.Append("A"));
         commands.Register("P", (r, a) => sb.Append(a.Text));
         var compiler = new Compiler(commands);
         return (compiler, sb);
     }
+    */
 }

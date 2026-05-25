@@ -8,29 +8,28 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 using Grille.IO.IniScript.Evaluation.Compilation;
-using Grille.IO.IniScript.Evaluation.Expressions;
 
 using static System.Collections.Specialized.BitVector32;
 
 namespace Grille.IO.IniScript.Evaluation;
 
-public class Runtime : IDisposable
+public sealed class Runtime : IDisposable
 {
     readonly StringBuilder _sb;
 
-    ExpressionParser ExpressionParser { get; set; }
-
     readonly Dictionary<string, CompiledFunction> _functions;
+
+    public ConverterRegistry Converters { get; }
 
     public Compiler? Compiler { get; }
 
-    public Stack<Scope> CallStack { get; }
+    public Stack<Scope> ScopeStack { get; }
 
-    public Stack<Argument> ValueStack { get; }
+    public Stack<object> ValueStack { get; }
 
     public Scope RootScope { get; }
 
-    public Scope PeakScope => CallStack.Peek();
+    public Scope PeakScope => ScopeStack.Peek();
 
     public Runtime() : this(null) { }
 
@@ -40,21 +39,20 @@ public class Runtime : IDisposable
 
         _sb = new StringBuilder();
 
-        ExpressionParser = new ExpressionParser();
-
         Compiler = compiler;
 
-        CallStack = new Stack<Scope>();
-        ValueStack = new Stack<Argument>();
+        Converters = new ConverterRegistry();
+        ScopeStack = new Stack<Scope>();
+        ValueStack = new Stack<object>();
 
-        RootScope = new Scope(null, "Root");
-        CallStack.Push(RootScope);
+        RootScope = new Scope(null, "<Root>");
+        ScopeStack.Push(RootScope);
     }
 
     public void Clear()
     {
         _functions.Clear();
-        CallStack.Clear();
+        ScopeStack.Clear();
         ValueStack.Clear();
     }
 
@@ -89,66 +87,30 @@ public class Runtime : IDisposable
         DecrementScope();
     }
 
+    internal object CastArgument(Argument arg, Type type)
+    {
+        if (arg.ConstValue != null)
+        {
+            return Converters.Cast(arg.ConstValue, type);
+        }
+
+        return null;
+    }
+
     void IncrementScope(string name)
     {
         var scope = new Scope(PeakScope, name);
-        CallStack.Push(scope);
+        ScopeStack.Push(scope);
 
     }
 
     void DecrementScope()
     {
-        if (CallStack.Count == 1)
+        if (ScopeStack.Count == 1)
         {
             throw new InvalidOperationException();
         }
-        CallStack.Pop();
-    }
-
-    public Argument GetValue(string key)
-    {
-        /*
-        if (key[0] == '$')
-        {
-            return PeakScope.GetVariable(key);
-        }
-        else if (key[0] == '%')
-        {
-            _sb.Clear();
-            var tokens = ExpressionParser.Tokenize(key.AsSpan(1), false);
-            foreach (var token in tokens)
-            {
-                if (token.Type == ExpressionParser.TokenType.Literal)
-                {
-                    _sb.Append(token.Text);
-                }
-                else if (token.Type == ExpressionParser.TokenType.UntokenizedExpression)
-                {
-                    _sb.Append(GetValue(token.Text));
-                }
-            }
-        }
-        */
-        return key;
-    }
-
-    public void SetValue(string key, Argument value)
-    {
-        if (key[0] != '$')
-        {
-            throw new InvalidOperationException();
-        }
-
-        PeakScope.SetVariable(key, value);
-    }
-
-    public virtual Argument EvalArgument(string arg)
-    {
-        if (arg.StartsWith("$"))
-        {
-            //return EvalArgument(PeakScope.GetVariable(value));
-        }
-        return new Argument();
+        ScopeStack.Pop();
     }
 
     public void Dispose()
