@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript.Utils;
+namespace Grille.IO.IniScript.Tokenization;
 
 internal ref struct TokenReader
 {

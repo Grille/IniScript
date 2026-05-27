@@ -7,7 +7,8 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
-using Grille.IO.IniScript.Evaluation.Compilation;
+
+using Grille.IO.IniScript.Compilation;
 
 namespace Grille.IO.IniScript.Evaluation;
 

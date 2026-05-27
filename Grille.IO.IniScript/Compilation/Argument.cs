@@ -8,8 +8,14 @@ using System.Threading.Tasks;
 using Grille.IO.IniScript.Utils;
 using Grille.IO.IniScript.Evaluation;
 using System.Diagnostics.CodeAnalysis;
+using Grille.IO.IniScript.Tokenization;
 
-namespace Grille.IO.IniScript;
+using Grille;
+using Grille.IO;
+using Grille.IO.IniScript;
+using Grille.IO.IniScript.Compilation;
+
+namespace Grille.IO.IniScript.Compilation;
 
 public sealed class Argument
 { 

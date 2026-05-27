@@ -1,4 +1,4 @@
-﻿using Grille.IO.IniScript.Utils;
+﻿using Grille.IO.IniScript.Tokenization;
 
 using System;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript;
+namespace Grille.IO.IniScript.Compilation;
 
 public sealed class InstructionInfo
 {

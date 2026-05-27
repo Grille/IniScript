@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.IO;
 
-namespace Grille.IO.IniScript.Utils;
+using Grille.IO.IniScript.Compilation;
+
+namespace Grille.IO.IniScript.Tokenization;
 
 internal class Lexer
 {

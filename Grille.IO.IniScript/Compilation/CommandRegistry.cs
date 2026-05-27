@@ -1,5 +1,5 @@
-﻿using Grille.IO.IniScript.Evaluation.Compilation;
-using Grille.IO.IniScript.Utils;
+﻿using Grille.IO.IniScript.Evaluation;
+using Grille.IO.IniScript.Tokenization;
 
 using System;
 using System.Collections.Generic;
@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 
 
-namespace Grille.IO.IniScript.Evaluation;
+namespace Grille.IO.IniScript.Compilation;
 
 public sealed class CommandRegistry
 {

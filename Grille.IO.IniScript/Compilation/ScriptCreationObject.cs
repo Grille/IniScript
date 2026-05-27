@@ -6,9 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using Grille.IO.IniScript.Evaluation.Compilation;
-
-namespace Grille.IO.IniScript;
+namespace Grille.IO.IniScript.Compilation;
 
 internal class ScriptCreationObject : Dictionary<string, ScriptCreationObject.Section>
 {

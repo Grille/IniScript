@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript;
+namespace Grille.IO.IniScript.Compilation;
 
 using static Signature;
 

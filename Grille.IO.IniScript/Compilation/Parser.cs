@@ -1,6 +1,4 @@
-﻿using Grille.IO.IniScript;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -8,13 +6,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript;
+namespace Grille.IO.IniScript.Compilation;
 
 using Grille.IO.IniScript.Evaluation;
+using Grille.IO.IniScript.Tokenization;
 
 using Utils;
 
-using static Utils.TokenType;
+using static Grille.IO.IniScript.Tokenization.TokenType;
 
 
 internal class Parser                     

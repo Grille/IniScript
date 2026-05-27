@@ -1,6 +1,7 @@
-﻿using Grille.IO.IniScript.Utils;
+﻿using Grille.IO.IniScript.Tokenization;
+using Grille.IO.IniScript.Utils;
 
-namespace Grille.IO.IniScript;
+namespace Grille.IO.IniScript.Compilation;
 
 using static TokenType;
 using CS = CharSets;

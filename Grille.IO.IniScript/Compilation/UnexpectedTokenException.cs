@@ -1,4 +1,4 @@
-﻿using Grille.IO.IniScript.Utils;
+﻿using Grille.IO.IniScript.Tokenization;
 
 using System;
 using System.Collections.Generic;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript;
+namespace Grille.IO.IniScript.Compilation;
 
 public class UnexpectedTokenException : Exception
 {
@@ -19,7 +19,7 @@ public class UnexpectedTokenException : Exception
     public int Line => Token.Location.Row;
 
     internal UnexpectedTokenException(char c, TokenLocation location) : 
-        this(new Token(c.ToString(), 0, 1, Utils.TokenType.None, location)) 
+        this(new Token(c.ToString(), 0, 1, Tokenization.TokenType.None, location)) 
     { }
 
     internal UnexpectedTokenException(Token token) : base(ToMessage(token))
@@ -38,7 +38,7 @@ public class UnexpectedTokenException : Exception
             sb.Append('@');
             sb.Append(token.Location);
         }
-        if (token.Type != Utils.TokenType.None)
+        if (token.Type != Tokenization.TokenType.None)
         {
             sb.Append(' ');
             sb.Append(token.Type);

@@ -1,10 +1,12 @@
-﻿using System;
+﻿using Grille.IO.IniScript.Utils;
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript.Utils;
+namespace Grille.IO.IniScript.Tokenization;
 
 internal readonly struct Token
 {

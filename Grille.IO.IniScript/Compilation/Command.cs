@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Grille.IO.IniScript.Evaluation;
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -6,7 +8,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript.Evaluation;
+namespace Grille.IO.IniScript.Compilation;
 
 public class Command
 {

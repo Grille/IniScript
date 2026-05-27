@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Grille.ConsoleTestLib.Asserts;
-using Grille.IO.IniScript;
+using Grille.IO.IniScript.Compilation;
 
 namespace Grille.IO.CfgScript_Tests;
 

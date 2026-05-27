@@ -1,5 +1,9 @@
 ﻿using System;
 
+using Grille.IO.IniScript.Tokenization;
+
+using Grille.IO.IniScript.Compilation;
+
 namespace Grille.IO.IniScript.Utils;
 
 internal static class NumberSerializer

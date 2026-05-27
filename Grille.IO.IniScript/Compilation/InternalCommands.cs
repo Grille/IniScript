@@ -1,11 +1,13 @@
-﻿using System;
+﻿using Grille.IO.IniScript.Evaluation;
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-namespace Grille.IO.IniScript.Evaluation;
+namespace Grille.IO.IniScript.Compilation;
 
 file static class InternalCommandsFunctions
 {
