@@ -30,7 +30,7 @@ public sealed class CommandRegistry
 
     public void RegisterDefault()
     {
-        Register(typeof(InternalCommands));
+        InternalCommands.Register(this);
     }
 
     public enum MethodValidationResult

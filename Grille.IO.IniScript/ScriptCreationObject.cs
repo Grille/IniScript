@@ -37,13 +37,13 @@ internal class ScriptCreationObject : Dictionary<string, ScriptCreationObject.Se
     [MemberNotNull(nameof(CurrentSection))]
     public Section GetSection(string name, string? parent = null)
     {
-        if (TryGetValue(name, out var instructions))
+        if (TryGetValue(name, out var section))
         {
-            if (instructions.ParentKey != parent)
+            if (section.ParentKey != parent)
             {
                 throw new InvalidOperationException($"Section '{name}' already exists with a different parent.");
             }
-            return CurrentSection = instructions;
+            return CurrentSection = section;
         }
         return CurrentSection = this[name] = new(name, parent);
     }

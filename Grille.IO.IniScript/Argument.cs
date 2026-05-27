@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 using Grille.IO.IniScript.Utils;
 using Grille.IO.IniScript.Evaluation;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Grille.IO.IniScript;
 
@@ -14,26 +15,15 @@ public sealed class Argument
 { 
     public char Modifier { get; }
 
-    public string Literal { get; }
-
     public Argument? Indexer { get; }
 
-    public object? ConstValue { get; }
+    public object Value { get; }
 
-    private Argument(string literal, TokenType type, char modifier, Argument? indexer = null)
+    private Argument(object value, char modifier = '\0', Argument? indexer = null)
     {
-        Literal = literal;
+        Value = value;
         Modifier = modifier;
         Indexer = indexer;
-        ConstValue = ParseConstValue(type);
-    }
-
-    private object? ParseConstValue(TokenType type)
-    {
-        if (type == TokenType.Number) return NumberSerializer.Deserialize(Literal).ToObject();
-        if (type == TokenType.LiteralString) return StringSerializer.Deserialize(Literal);
-        if (type == TokenType.InterpolatedString) throw new NotImplementedException();
-        return null;
     }
 
     internal static bool Skip(ref TokenReader tokens)
@@ -43,16 +33,30 @@ public sealed class Argument
         {
             token = tokens.Next();
         }
-        if (!token.Type.IsParameter) return false;
-        if (token.Type == TokenType.Word)
+        if (!SkipArray(ref tokens)) return false;
+        else if (!token.Type.IsParameter) return false;
+        if (!SkipIndexer(ref tokens)) return false;
+        return true;
+    }
+
+    private static bool SkipArray(ref TokenReader tokens)
+    {
+        if (!tokens.NextIf("[")) return true;
+        while (true)
         {
-            var peek = tokens.Peek();
-            if (peek != (TokenType.Bracket, "[")) return true;
-            tokens.Position += 1;
             if (!Skip(ref tokens)) return false;
-            token = tokens.Next();
-            if (peek != (TokenType.Bracket, "]")) return false;
+            if (tokens.NextIf("]")) break;
+            else if (tokens.NextIf(",")) continue;
+            else return false;
         }
+        return true;
+    }
+
+    private static bool SkipIndexer(ref TokenReader tokens)
+    {
+        if (!tokens.NextIf("[")) return true;
+        if (!Skip(ref tokens)) return false;
+        if (!tokens.NextIf("]")) return false;
         return true;
     }
 
@@ -65,26 +69,57 @@ public sealed class Argument
             modifier = token.AsSpan()[0];
             token = tokens.Next();
         }
-        if (!token.Type.IsParameter) throw new UnexpectedTokenException(token);
-        var literal = token.Substring();
-        var type = token.Type;
-
-        if (token == TokenType.Word)
-        {
-            var peek = tokens.Peek();
-            if (peek != (TokenType.Bracket, "["))
-            {
-                return new Argument(literal, type, modifier);
-            }
-            tokens.Position += 1;
-            var indexer = Parse(ref tokens);
-            token = tokens.Next();
-            if (token != (TokenType.Bracket, "]"))
-            {
-                throw new UnexpectedTokenException(token);
-            }
-            return new Argument(literal, type, modifier, indexer);
-        }
-        return new Argument(literal, type, modifier);
+        var value = ParseValue(ref  tokens);
+        var indexer = ParseIndexer(ref tokens);
+        return new Argument(value, modifier, indexer);
     }
+
+    private static object ParseValue(ref TokenReader tokens)
+    {
+        var array = TryParseArray(ref tokens);
+        if (array != null) return array;
+        var token = tokens.Next();
+        if (!token.Type.IsParameter) throw new UnexpectedTokenException(token);
+        return ParseToken(token);
+    }
+
+    private static Argument[]? TryParseArray(ref TokenReader tokens)
+    {
+        if (!tokens.NextIf("[")) return null;
+
+        var list = new List<Argument>();
+
+        while (true)
+        {
+            list.Add(Parse(ref tokens));
+            if (tokens.NextIf("]")) break;
+            else if (tokens.NextIf(",")) continue;
+            else throw new UnexpectedTokenException(tokens.Current);
+        }
+
+        return list.ToArray();
+    }
+
+    private static Argument? ParseIndexer(ref TokenReader tokens)
+    {
+        var token = tokens.Peek();
+        if (token != (TokenType.Bracket, "[")) return null;
+        tokens.Position += 1;
+
+        var indexer = Parse(ref tokens);
+
+        token = tokens.Next();
+        if (token != (TokenType.Bracket, "]")) throw new UnexpectedTokenException(token);
+
+        return indexer;
+    }
+
+    private static object ParseToken(Token token) => token.Type switch
+    {
+        TokenType.Word => new Identifier(token),
+        TokenType.Number => NumberSerializer.Deserialize(token).ToObject(),
+        TokenType.LiteralString => StringSerializer.Deserialize(token),
+        TokenType.InterpolatedString => throw new NotImplementedException(),
+        _ => throw new NotImplementedException(),
+    };
 }

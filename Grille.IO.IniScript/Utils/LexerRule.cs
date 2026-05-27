@@ -54,11 +54,24 @@ internal readonly ref struct LexerRuleContext
     public char this[int offset] => GetChar(offset);
 }
 
-internal record LexerRule(TokenType Type, LexerRule.Predicate Begin, LexerRule.Predicate Continue)
+internal class LexerRule
 {
     public delegate bool Predicate(LexerRuleContext ctx);
 
-    public LexerRule(TokenType Type, Predicate Begin) : this(Type, Begin, Begin) { }
+    public TokenType Type { get; }
+
+    public Predicate Begin { get; }
+
+    public Predicate Continue { get; }
+
+    public LexerRule(TokenType type, Predicate beginRule, Predicate continueRule)
+    {
+        Type = type;
+        Begin = beginRule;
+        Continue = continueRule;
+    }
+
+    public LexerRule(TokenType type, Predicate beginRule) : this(type, beginRule, beginRule) { }
 
     public static readonly LexerRule EndOfLine = new LexerRule(TokenType.EndOfLine, (ctx) => ctx.IsEndOfLine());
 }

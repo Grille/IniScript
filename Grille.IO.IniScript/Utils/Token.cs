@@ -33,7 +33,7 @@ internal readonly struct Token
 
     public ReadOnlySpan<char> AsSpan() => _text.AsSpan(Start, Length);
 
-    public override string ToString() => $"{Substring()} {Type}";
+    public override string ToString() => $"{StringSerializer.Serialize(AsSpan())} {Type}";
 
     public bool CompareSpans(ReadOnlySpan<char> span, StringComparison comparisonType = StringComparison.Ordinal) => AsSpan().Equals(span, comparisonType);
 

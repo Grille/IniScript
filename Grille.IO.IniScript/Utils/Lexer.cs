@@ -6,138 +6,130 @@ namespace Grille.IO.IniScript.Utils;
 
 internal class Lexer
 {
-    readonly LexerRule[] _rules;
-
-    public Lexer(LexerRule[] rules)
+    private struct Context
     {
-        _rules = rules;
+        private readonly string Text;
+        private readonly LexerRule[] Rules;
+        private readonly RangedArrayBuilder<Token> Tokens;
+         
+        private int Index;
+        private int EOLStartIndex = -1;
+        private int Row;
+        private int Column;
+
+        private Context(LexerRule[] rules, string text)
+        {
+            Rules = rules;
+            Text = text;
+            Tokens = new();
+            Column = -1;
+        }
+
+        private bool IsEndOfFile => Index == Text.Length;
+
+        private bool IsEndOfLine(int length) => new LexerRuleContext(Text, Index, length).IsEndOfLine();
+
+        private TokenLocation Location => new(Row, Column);
+
+        private void UpdateLocation()
+        {
+            if (EOLStartIndex != -1 && !IsEndOfLine(Index - EOLStartIndex)) //continue
+            {
+                EOLStartIndex = -1;
+                Row += 1;
+                Column = -1;
+            }
+            if (EOLStartIndex == -1 && IsEndOfLine(0)) //begin
+            {
+                EOLStartIndex = Index;
+            }
+            Column += 1;
+        }
+
+        private LexerRule GetNextRule()
+        {
+            var ctx = new LexerRuleContext(Text, Index);
+            foreach (var rule in Rules)
+            {
+                if (rule.Begin(ctx))
+                {
+                    return rule;
+                }
+            }
+            throw new UnexpectedTokenException(Text[Index], Location);
+        }
+
+        private void TokenizeLines()
+        {
+            LexerRule? activeRule = null;
+            int beginIndex = Index;
+            var beginLocation = TokenLocation.Empty;
+
+            while (true)
+            {
+                UpdateLocation();
+
+                if (activeRule != null)
+                {
+                    int length = Index - beginIndex;
+                    var ctx = new LexerRuleContext(Text, Index, length);
+                    if (!activeRule.Continue(ctx) || IsEndOfFile)
+                    {
+                        var token = new Token(Text, beginIndex, length, activeRule.Type, beginLocation);
+                        Tokens.Add(token);
+                        activeRule = null;
+                        if (token == TokenType.EndOfLine)
+                        {
+                            Tokens.YieldRange();
+                        }
+                    }
+                }
+
+                if (IsEndOfFile) break;
+
+                if (activeRule == null)
+                {
+                    beginIndex = Index;
+                    beginLocation = Location;
+                    activeRule = GetNextRule();
+                }
+
+                Index += 1;
+            }
+        }
+
+        private RangedArray<Token> Tokenize()
+        {
+            TokenizeLines();
+            Tokens.Add(new Token(TokenType.EndOfFile, Location));
+            Tokens.YieldRange();
+            return Tokens.ToArray();
+        }
+
+        public static RangedArray<Token> Tokenize(LexerRule[] rules, string text)
+        {
+            return new Context(rules, text).Tokenize();
+        }
     }
 
-    public TokenList Tokenize(Stream stream, bool leaveOpen = false)
+    private readonly LexerRule[] _rules;
+
+    public Lexer(LexerRule[] rules) => _rules = rules;
+
+    public RangedArray<Token> Tokenize(Stream stream, bool leaveOpen = false)
     {
         using var reader = new StreamReader(stream, leaveOpen: leaveOpen);
         return Tokenize(reader);
     }
 
-    public TokenList Tokenize(TextReader reader)
+    public RangedArray<Token> Tokenize(TextReader reader)
     {
         var text = reader.ReadToEnd();
         return Tokenize(text);
     }
 
-    public TokenList Tokenize(string text) 
+    public RangedArray<Token> Tokenize(string text) 
     {
-        var tokens = new List<Token>();
-        var lines = new List<Range>();
-        int textIndex = 0;
-        int lineIndex = 0;
-
-        while (true) 
-        {
-            lines.Add(TokenizeLine(tokens, text, ref lineIndex, ref textIndex));
-            if (tokens[^1].Type == TokenType.EndOfFile) break;
-        }
-
-        return new TokenList(tokens.ToArray(), lines.ToArray());
-    }
-
-    private struct LineCounter
-    {
-        private readonly string _text;
-        private int _tokenLength;
-
-        public int Row;
-        public int Column;
-
-        public TokenLocation Location => new(Row, Column);
-
-        public LineCounter(string text, int row)
-        {
-            _text = text;
-            Row = row ;
-            Column = 0;
-        }
-
-        public void Update(int index)
-        {
-            var ctx = new LexerRuleContext(_text, index, _tokenLength);
-            if (ctx.IsEndOfLine())
-            {
-                _tokenLength += 1;
-            }
-            else if (_tokenLength > 0)
-            {
-                Row += 1;
-                Column = -1;
-                _tokenLength = 0;
-            }
-            Column += 1;
-        }
-    }
-
-    private LexerRule? BeginNew(LexerRuleContext ctx)
-    {
-        foreach (var rule in _rules)
-        {
-            if (rule.Begin(ctx))
-            {
-                return rule;
-            }
-        }
-        return null;
-    }
-
-    private Range TokenizeLine(List<Token> tokens, string text, ref int lineIndex, ref int textIndex)
-    {
-        var lineCounter = new LineCounter(text, lineIndex);
-        var location = TokenLocation.Empty;
-
-        LexerRule? activeRule = null;
-
-        int lineStart = tokens.Count;
-
-        int index = textIndex;
-        int begin = textIndex;
-        bool isEndOfFile = false;
-
-        while (true)
-        {
-            isEndOfFile = index == text.Length;
-            lineCounter.Update(index);
-
-            if (activeRule != null)
-            {
-                int length = index - begin;
-                var ctx = new LexerRuleContext(text, index, length);
-                if (!activeRule.Continue(ctx) || isEndOfFile)
-                {
-                    var token = new Token(text, begin, length, activeRule.Type, location);
-                    tokens.Add(token);
-                    activeRule = null;
-                    if (token == TokenType.EndOfLine) break;
-                }
-            }
-
-            if (isEndOfFile)
-            {
-                tokens.Add(new Token(TokenType.EndOfFile, lineCounter.Location));
-                break;
-            }
-            if (activeRule == null)
-            {
-                location = lineCounter.Location;
-                var ctx = new LexerRuleContext(text, index, 0);
-                if ((activeRule = BeginNew(ctx)) != null) begin = index;
-                else throw new UnexpectedTokenException(text[index], location);
-            }
-
-            index += 1;
-        }
-
-        textIndex = index;
-        lineIndex = lineCounter.Row;
-
-        int lineEnd = tokens.Count;
-        return new(lineStart, lineEnd);
+        return Context.Tokenize(_rules, text);
     }
 }

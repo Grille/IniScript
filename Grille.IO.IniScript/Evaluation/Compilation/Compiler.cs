@@ -14,6 +14,8 @@ public sealed class Compiler
     readonly List<CompiledInstruction> _instructions;
     readonly CommandRegistry _commands;
 
+    public CommandRegistry Commands => _commands;
+
     public Compiler(CommandRegistry commands)
     {
         _commands = commands;

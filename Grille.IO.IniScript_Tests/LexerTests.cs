@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Grille.ConsoleTestLib.Asserts;
-using Grille.IO.IniScript.Utils;
 
 namespace Grille.IO.CfgScript_Tests;
 
@@ -35,6 +34,10 @@ public static class LexerTests
         var comment1 = Token(Comment, "#Comment");
         var comment2 = Token(Comment, "//Comment");
         var comment3 = Token(Comment, "/*Comment*/");
+
+        var lf = Token(EndOfLine, "\n");
+        var cr = Token(EndOfLine, "\r");
+        var crlf = Token(EndOfLine, "\r\n");
 
         Section("Lexer Single");
 
@@ -84,6 +87,24 @@ public static class LexerTests
 
         TestTokens("Key = Arg0", [key, s, equals, s, arg0]);
         TestTokens("Key=$\"Text{Var}\"", [key, equals, Token(InterpolatedString,"$\"Text{Var}\"")]);
+
+        TestTokens("\n\n", [lf, lf]);
+        TestTokens("\r\r", [cr, cr]);
+        TestTokens("\r\n", [crlf]);
+        TestTokens("\r\n\r\n", [crlf, crlf]);
+
+        Section("Lexer Location");
+        TestTokenLocation("A", 0, 0);
+        TestTokenLocation("  A", 0, 2);
+        TestTokenLocation("\nA", 1, 0);
+        TestTokenLocation("\n  A", 1, 2);
+        TestTokenLocation("/*\n*/A", 1, 2);
+        TestTokenLocation("*/\n*/  A", 1, 4);
+        TestTokenLocation("\n\nA", 2, 0);
+        TestTokenLocation("\r\nA", 1, 0);
+        TestTokenLocation("\n\n\nA", 3, 0);
+        TestTokenLocation("\n\n\n\nA", 4, 0);
+        TestTokenLocation("\r\n\r\nA", 2, 0);
     }
 
     static string FormatTitle(string text)
@@ -100,10 +121,10 @@ public static class LexerTests
         return string.Join(", ", types);
     }
 
-    static TokenList Tokenize(string text, out string debug)
+    static RangedArray<Token> Tokenize(string text, out string debug)
     {
         var result = ParserLexer.Lexer.Tokenize(text);
-        debug = TokensToDebugString(result);
+        debug = TokensToDebugString(result.Items);
         return result;
     }
 
@@ -111,8 +132,8 @@ public static class LexerTests
 
     static void _TestToken(string text, TokenType type)
     {
-        var result = Tokenize(text, out var message);
-        Assert.IsEqual(2, result.TokenCount, message);
+        var result = Tokenize(text, out var message).Items;
+        Assert.IsEqual(2, result.Length, message);
         Assert.IsEqual(type, result[0].Type);
         if (result[1].Type != EndOfFile) Warn(message);
         Succes(result[0].Type.ToString());
@@ -122,14 +143,23 @@ public static class LexerTests
 
     static void _TestTokens(string text, Token[] tokens)
     {
-        var result = Tokenize(text, out var message);
-        Assert.IsEqual(tokens.Length + 1, result.TokenCount, message);
+        var result = Tokenize(text, out var message).Items;
+        Assert.IsEqual(tokens.Length + 1, result.Length, message);
         for (int i = 0; i < tokens.Length; i++)
         {
             Assert.IsEqual(tokens[i].Type, result[i].Type);
-            Assert.IsEqual((string)tokens[i], (string)result[i]);
+            Assert.IsEqual(StringSerializer.Serialize(tokens[i]), StringSerializer.Serialize(result[i]));
         }
         Assert.IsEqual(result[^1].Type, EndOfFile);
         Succes(message);
     }
+
+    static void TestTokenLocation(string text, int row, int column) => Test(FormatTitle(text), () => _TestTokenLocation(text, new(row,column)));
+
+    static void _TestTokenLocation(string text, TokenLocation location)
+    {
+        var tokens = Tokenize(text, out var message).Items;
+        Assert.IsEqual(location, tokens[^2].Location);
+    }
+
 }

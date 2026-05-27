@@ -9,14 +9,10 @@ using System.Text;
 using System.Threading.Tasks;
 using Grille.IO.IniScript.Evaluation.Compilation;
 
-using static System.Collections.Specialized.BitVector32;
-
 namespace Grille.IO.IniScript.Evaluation;
 
 public sealed class Runtime : IDisposable
 {
-    readonly StringBuilder _sb;
-
     readonly Dictionary<string, CompiledFunction> _functions;
 
     public ConverterRegistry Converters { get; }
@@ -36,8 +32,6 @@ public sealed class Runtime : IDisposable
     public Runtime(Compiler? compiler)
     {
         _functions = new Dictionary<string, CompiledFunction>();
-
-        _sb = new StringBuilder();
 
         Compiler = compiler;
 
@@ -89,9 +83,9 @@ public sealed class Runtime : IDisposable
 
     internal object CastArgument(Argument arg, Type type)
     {
-        if (arg.ConstValue != null)
+        if (arg.Value != null)
         {
-            return Converters.Cast(arg.ConstValue, type);
+            return Converters.Cast(arg.Value, type);
         }
 
         return null;

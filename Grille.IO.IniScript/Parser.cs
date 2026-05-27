@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 
 namespace Grille.IO.IniScript;
 
+using Grille.IO.IniScript.Evaluation;
+
 using Utils;
 
 using static Utils.TokenType;
@@ -19,6 +21,7 @@ internal class Parser
 {
     private readonly Signature _sectionSignature0;
     private readonly Signature _sectionSignature1;
+    private readonly Signature _assignmentSignature;
 
     public int TabSize { get; set; } = 4;
 
@@ -28,6 +31,7 @@ internal class Parser
     {
         _sectionSignature0 = Signature.New().OpeningBracket('[').Parameter().ClosingBracket();
         _sectionSignature1 = Signature.New().OpeningBracket('[').Parameter().ClosingBracket().Symbol(':').Parameter();
+        _assignmentSignature = Signature.New().Parameter().Symbol('=');
     }
 
     public ScriptCreationObject Parse(string text)
@@ -66,11 +70,11 @@ internal class Parser
 
     public void Parse(string text, ScriptCreationObject script)
     {
-        var tokens = ParserLexer.Lexer.Tokenize(text);
+        var instructions = ParserLexer.Lexer.Tokenize(text);
 
-        for (int i = 0; i < tokens.LineCount; i++)
+        for (int i = 0; i < instructions.Length; i++)
         {
-            var line = tokens.GetLine(i);
+            var line = instructions[i];
             if (line.Length > 1)
             {
                 ParseLine(line, script);
@@ -81,7 +85,7 @@ internal class Parser
     void ParseLine(ReadOnlySpan<Token> tokens, ScriptCreationObject script)
     {
         int line = tokens[0].Location.Row;
-        int indentation = tokens[0].Location.Column;
+        int indentation = 0;
 
         var comments = new List<string>();
         var purgedList = new List<Token>();
@@ -111,21 +115,24 @@ internal class Parser
 
         var purgedArray = purgedList.ToArray();
 
+        string AsIdentifier(Argument arg) => ((Identifier)arg.Value).Literal;
+
         if (_sectionSignature0.Matches(purgedArray))
         {
             var args = _sectionSignature0.ExtractArguments(purgedArray);
-            var name = args[0].Literal;
+            var name = AsIdentifier(args[0]);
             script.GetSection(name);
         }
         else if (_sectionSignature1.Matches(purgedArray))
         {
             var args = _sectionSignature1.ExtractArguments(purgedArray);
-            var name = args[0].Literal;
-            var parentName = args[1].Literal;
+            var name = AsIdentifier(args[0]);
+            var parentName = AsIdentifier(args[1]);
             script.GetSection(name, parentName);
         }
         else
         {
+            bool isAssignment = purgedArray.Length > 2 && _assignmentSignature.Matches(purgedArray.AsSpan(0, 2));
             var location = new InstructionLocation(line, indentation);
             script.CurrentSection.Add(new InstructionInfo(purgedArray, location, comments.ToArray()));
         }

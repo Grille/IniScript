@@ -32,6 +32,26 @@ internal ref struct TokenReader
 
     public Token Next() => this[Position++];
 
+    public bool NextIf(string value)
+    {
+        if (Current == value)
+        {
+            Position += 1;
+            return true;
+        }
+        return false;
+    }
+
+    public bool NextIf(TokenType type)
+    {
+        if (Current == type)
+        {
+            Position += 1;
+            return true;
+        }
+        return false;
+    }
+
     public Token Peek(int offset = 1) => this[Position + offset];
 
     public static implicit operator TokenReader(ReadOnlySpan<Token> tokens) => new TokenReader(tokens);

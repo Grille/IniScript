@@ -18,7 +18,9 @@ public class UnexpectedTokenException : Exception
 
     public int Line => Token.Location.Row;
 
-    internal UnexpectedTokenException(char c, TokenLocation location) : this(new Token(c.ToString(),0,1,Utils.TokenType.None, location)) { }
+    internal UnexpectedTokenException(char c, TokenLocation location) : 
+        this(new Token(c.ToString(), 0, 1, Utils.TokenType.None, location)) 
+    { }
 
     internal UnexpectedTokenException(Token token) : base(ToMessage(token))
     {

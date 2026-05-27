@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Microsoft.Win32;
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,11 +18,44 @@ public sealed class ConverterRegistry
     {
         _level0Specific = new();
         _level1Generic = new();
+        RegsiterDefault();
     }
+
+    private void RegsiterDefault()
+    {
+        Register(Convert.ToBoolean);
+        Register(Convert.ToChar);
+        Register(ConvertToString);
+
+        Register(Convert.ToSByte);
+        Register(Convert.ToInt16);
+        Register(Convert.ToInt32);
+        Register(Convert.ToInt64);
+
+        Register(Convert.ToByte);
+        Register(Convert.ToUInt16);
+        Register(Convert.ToUInt32);
+        Register(Convert.ToUInt64);
+
+        Register(Convert.ToSingle);
+        Register(Convert.ToDouble);
+        Register(Convert.ToDecimal);
+
+        Register(Convert.ToChar);
+    }
+
+    private static string ConvertToString(object value) => value.ToString() ?? string.Empty;
 
     public void Register<TInput, TOutput>(Converter<TInput, TOutput> converter) where TInput : notnull where TOutput : notnull
     {
-        _level0Specific[(typeof(TOutput), typeof(TInput))] = (input) => converter((TInput)input);
+        if (typeof(TInput) == typeof(object))
+        {
+            _level1Generic[typeof(TOutput)] = (input) => converter((TInput)input);
+        }
+        else
+        {
+            _level0Specific[(typeof(TOutput), typeof(TInput))] = (input) => converter((TInput)input);
+        }
     }
 
     public void Register<TOutput>(Converter<object, TOutput> converter) where TOutput : notnull

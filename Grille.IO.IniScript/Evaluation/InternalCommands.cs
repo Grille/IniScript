@@ -7,7 +7,7 @@ using System.Xml.Linq;
 
 namespace Grille.IO.IniScript.Evaluation;
 
-internal static class InternalCommands
+file static class InternalCommandsFunctions
 {
     extension(Runtime runtime)
     {
@@ -48,5 +48,13 @@ internal static class InternalCommands
         {
 
         }
+    }
+}
+
+internal static class InternalCommands
+{
+    public static void Register(CommandRegistry registry)
+    {
+
     }
 }
