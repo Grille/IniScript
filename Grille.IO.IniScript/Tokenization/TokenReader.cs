@@ -16,6 +16,8 @@ internal ref struct TokenReader
 
     public int Position;
 
+    public int Remaining => Tokens.Length - Position;
+
     public TokenReader(ReadOnlySpan<Token> tokens)
     {
         Tokens = tokens;
@@ -32,25 +34,17 @@ internal ref struct TokenReader
 
     public Token Next() => this[Position++];
 
-    public bool NextIf(string value)
+    private bool IncIfTrue(bool value)
     {
-        if (Current == value)
-        {
-            Position += 1;
-            return true;
-        }
-        return false;
+        if (value) Position += 1;
+        return value;
     }
 
-    public bool NextIf(TokenType type)
-    {
-        if (Current == type)
-        {
-            Position += 1;
-            return true;
-        }
-        return false;
-    }
+    public bool NextIf(string value) => IncIfTrue(Current == value);
+
+    public bool NextIf(TokenType type) => IncIfTrue(Current == type);
+
+    public bool NextIf(Predicate<Token> predicate) => IncIfTrue(predicate(Current));
 
     public Token Peek(int offset = 1) => this[Position + offset];
 

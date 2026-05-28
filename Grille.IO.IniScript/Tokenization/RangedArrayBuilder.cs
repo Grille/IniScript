@@ -8,19 +8,25 @@ namespace Grille.IO.IniScript.Tokenization;
 
 internal class RangedArrayBuilder<T>
 {
-    private readonly List<T> _items = new();
+    private readonly List<T> _items;
 
-    private readonly List<Range> _ranges = new();
+    private readonly List<Range> _ranges;
 
-    public int Start { get; private set; }
+    private int _rangeStart;
+
+    public RangedArrayBuilder(int capacity = 0)
+    {
+        _items = new List<T>(capacity);
+        _ranges = new List<Range>(capacity);
+    }
 
     public void Add(T value) => _items.Add(value);
 
     public int YieldRange()
     {
-        if (Start == _items.Count) return -1;
-        var range = new Range(Start, _items.Count - 1);
-        Start = _items.Count;
+        if (_rangeStart == _items.Count) return -1;
+        var range = new Range(_rangeStart, _items.Count);
+        _rangeStart = _items.Count;
         _ranges.Add(range);
         return _ranges.Count - 1;
     }

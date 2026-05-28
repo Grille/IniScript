@@ -146,7 +146,7 @@ public sealed class Signature
                 return false;
             }
         }
-        return true;
+        return !tokens.CanRead;
     }
 
     internal Argument[] ExtractArguments(TokenReader tokens)

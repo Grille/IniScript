@@ -1,4 +1,6 @@
-﻿using Grille.IO.IniScript.Evaluation;
+﻿using Grille.IO.IniScript.Compilation.Internal;
+using Grille.IO.IniScript.Evaluation;
+
 using Grille.IO.IniScript.Tokenization;
 
 using System;
@@ -15,54 +17,94 @@ namespace Grille.IO.IniScript.Compilation;
 
 public sealed class CommandRegistry
 {
-    public readonly record struct Pair(Command Command, Signature Signature);
+    internal class CommandSignatureRegistry
+    {
+        public readonly record struct Pair(Command Command, Signature Signature);
 
-    private readonly List<Pair> _commands = new();
+        private readonly List<Pair> _list = new();
+
+        private int FindOverlapIndex(Signature signature)
+        {
+            for (int i = 0; i < _list.Count; i++)
+            {
+                var pair = _list[i];
+                if (signature.Overlaps(pair.Signature))
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        public void Register(Command command, Signature signature, bool allowOveride = false)
+        {
+            if (command.ParameterCount != signature.ParameterCount)
+            {
+                throw new ArgumentException();
+            }
+            var pair = new Pair(command, signature);
+            int index = FindOverlapIndex(signature);
+            if (index != -1)
+            {
+                if (!allowOveride)
+                {
+                    throw new InvalidOperationException($"A command with an overlapping signature is already registered.");
+                }
+                else
+                {
+                    _list[index] = pair;
+                }
+            }
+            else
+            {
+                _list.Add(pair);
+            }
+        }
+
+        public bool TryGetPair(Signature signature, [MaybeNullWhen(false)] out Pair result)
+        {
+            int index = FindOverlapIndex(signature);
+            if (index != -1)
+            {
+                result = _list[index];
+                return true;
+            }
+            result = default; 
+            return false;
+        }
+
+        internal bool TryGetPair(ReadOnlySpan<Token> tokens, [MaybeNullWhen(false)] out Pair result)
+        {
+            foreach (var pair in _list)
+            {
+                if (pair.Signature.Matches(tokens))
+                {
+                    result = pair;
+                    return true;
+                }
+            }
+            result = default;
+            return false;
+        }
+    }
+
+    private readonly CommandSignatureRegistry _level0Default = new();
+
+    private readonly CommandSignatureRegistry _level1Fallback = new();
 
     public Func<MethodInfo, Signature[]>? SignatureFactory { get; set; }
 
-    public bool ThrowOnOverlap { get; set; } = true;
+    public bool AllowOveride { get; set; } = false;
 
     public CommandRegistry()
     {
-        _commands = new();
+        _level0Default = new();
+        _level1Fallback = new();
     }
 
     public void RegisterDefault()
     {
         InternalCommands.Register(this);
-    }
-
-    public enum MethodValidationResult
-    {
-        Valid,
-        NotStatic,
-        InvalidSignature,
-    }
-
-    public void Register(Command command, Signature signature)
-    {
-        if (command.ParameterCount != signature.ParameterCount)
-        {
-            throw new ArgumentException();
-        }
-        var pair = new Pair(command, signature);
-        int index = FindOverlapIndex(signature);
-        if (index != -1)
-        {
-            if (ThrowOnOverlap)
-            {
-                throw new InvalidOperationException($"A command with an overlapping signature is already registered.");
-            }
-            else
-            {
-                _commands[index] = pair;
-            }
-        }
-        else
-        {
-            _commands.Add(pair);
-        }
     }
 
     private static Signature[] DefaultSignatureFactory(MethodInfo method) =>
@@ -71,38 +113,25 @@ public sealed class CommandRegistry
         Signature.CreateFunc(method.Name, method.GetParameters().Length - 1, false),
     ];
 
-    public MethodValidationResult TryRegister(MethodInfo method)
+    private Signature[] CreateSignatures(MethodInfo method) => (SignatureFactory ?? DefaultSignatureFactory)(method);
+
+    public void RegisterFallback(Command command, Signature signature)
     {
-        if (!method.IsStatic)
-        {
-            return MethodValidationResult.NotStatic;
-        }
+        _level1Fallback.Register(command, signature, true);
+    }
 
-        var parameters = method.GetParameters();
-        if (parameters.Length == 0 || parameters[0].ParameterType != typeof(Runtime))
-        {
-            return MethodValidationResult.InvalidSignature;
-        }
+    public void Register(Command command, Signature signature)
+    {
+        _level0Default.Register(command, signature, AllowOveride);
+    }
 
-        var factory = SignatureFactory != null ? SignatureFactory : DefaultSignatureFactory;
-        var signatures = factory(method);
+    public void Register(MethodInfo method)
+    {
+        var signatures = CreateSignatures(method);
         var command = new Command(method);
         foreach (var signature in signatures)
         {
             Register(command, signature);
-        }
-
-        return MethodValidationResult.Valid;
-    }
-
-    public MethodValidationResult TryRegister(Delegate del) => TryRegister(del.Method);
-
-    public void Register(MethodInfo method)
-    {
-        var result = TryRegister(method);
-        if (result != MethodValidationResult.Valid)
-        {
-            throw new InvalidOperationException($"The method '{method.Name}' is not a valid command method. Reason: {result}");
         }
     }
 
@@ -114,7 +143,7 @@ public sealed class CommandRegistry
         var methods = type.GetMethods();
         foreach (var method in methods)
         {
-            if (TryRegister(method) == MethodValidationResult.Valid)
+            if (Command.Validate(method) == Command.ValidationResult.Valid)
             {
                 count++;
             }
@@ -122,47 +151,59 @@ public sealed class CommandRegistry
         return count;
     }
 
-    private int FindOverlapIndex(Signature signature)
+    public struct Result
     {
-        for (int i = 0; i < _commands.Count; i++)
+        public readonly int Level;
+        public readonly Signature Signature;
+        public readonly Command Command;
+
+        public Result(Command command, Signature signature, int level)
         {
-            var pair = _commands[i];
-            if (signature.Overlaps(pair.Signature))
-            {
-                return i;
-            }
+            Command = command;
+            Signature = signature;
+            Level = level;
         }
-        return -1;
     }
 
-    public Pair? FindOverlap(Signature signature)
+    public bool TryGetPair(Signature signature, [MaybeNullWhen(false)] out Result result)
     {
-        int index = FindOverlapIndex(signature);
-        return index != -1 ? _commands[index] : null;
-    }
-
-    public bool ContainsOverlap(Signature signature) => FindOverlap(signature).HasValue;
-
-    internal bool TryGetPair(ReadOnlySpan<Token> tokens, [MaybeNullWhen(false)] out Pair result)
-    {
-        foreach (var pair in _commands)
+        if (_level0Default.TryGetPair(signature, out var pair0))
         {
-            if (pair.Signature.Matches(tokens))
-            {
-                result = pair;
-                return true;
-            }
+            result = new Result(pair0.Command, pair0.Signature, 0);
+            return true;
         }
-        result = new Pair(null!, null!);
+        if (_level1Fallback.TryGetPair(signature, out var pair1))
+        {
+            result = new Result(pair1.Command, pair1.Signature, 1);
+            return true;
+        }
+        result = default;
         return false;
     }
 
-    internal Pair GetPair(ReadOnlySpan<Token> tokens)
+    public Result GetPair(Signature signature)
     {
-        if (TryGetPair(tokens, out var command))
+        return TryGetPair(signature, out var command) ? command : throw new KeyNotFoundException();
+    }
+
+    internal bool TryGetPair(ReadOnlySpan<Token> tokens, [MaybeNullWhen(false)] out Result result)
+    {
+        if (_level0Default.TryGetPair(tokens, out var pair0))
         {
-            return command;
+            result = new Result(pair0.Command, pair0.Signature, 0);
+            return true;
         }
-        throw new KeyNotFoundException();
+        if (_level1Fallback.TryGetPair(tokens, out var pair1))
+        {
+            result = new Result(pair1.Command, pair1.Signature, 1);
+            return true;
+        }
+        result = default;
+        return false;
+    }
+
+    internal Result GetPair(ReadOnlySpan<Token> tokens)
+    {
+        return TryGetPair(tokens, out var command) ? command : throw new KeyNotFoundException();
     }
 }

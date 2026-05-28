@@ -6,7 +6,8 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Grille.ConsoleTestLib.Asserts;
-using Grille.IO.IniScript.Compilation;
+using Grille.IO.IniScript.Compilation.Internal;
+using Grille.IO.IniScript.Tokenization;
 
 namespace Grille.IO.CfgScript_Tests;
 
@@ -18,10 +19,14 @@ static class ParserTests
 
         Test("Lines", Lines);
         Test("Sections", Sections);
-        /*
-        Test("2", Test2);
-        Test("Ini", TestIni);
-        */
+
+        Section("Parser Arguments");
+        TestArgument<double>("0.123", 0.123);
+        TestArgument<long>("3124576", 3124576);
+        TestArgument<long>("0xFF", 0xFF);
+        TestArgument<string>("\"str\"", "str");
+        TestArgument<Identifier>("Key", "Key");
+        TestArgument<Argument[]>("[0,1]", [new Argument(0L), new Argument(1L)], 5, ToString);
     }
 
     static void Lines()
@@ -41,59 +46,44 @@ static class ParserTests
 
     static void Sections()
     {
-        var script = Parse("[A]\n[B]\n");
+        var script = Parse("[A]\n[B]:A\n");
         Assert.IsEqual(script.Count, 3);
         Assert.IsTrue(script.ContainsKey(ScriptCreationObject.DefaultSectionName));
+        Assert.IsTrue(script.ContainsKey("A"));
+        Assert.IsTrue(script.ContainsKey("B"));
+        Assert.IsEqual("A", script["B"].ParentKey);
     }
 
-    /*
-    static void Test1()
+    private static string ToString(Argument[] arguments)
     {
-        var script = Parse("[S]\nKey A0, 0x42");
-
-        var section = script.ActiveSection;
-        Assert.IsEqual("S", section.Name);
-
-        Assert.IsEqual(1, section.Count);
-
-        var entry = section[0];
-
-        Assert.IsEqual("Key", entry.Key);
-        Assert.IsEqual("A0", entry.Args[0].Text);
-        Assert.IsEqual("0x42", entry.Args[1].Hex32);
-    }
-
-    static void Test2()
-    {
-        var script = Parse("#TabSize 4\n[S]\n\nKey A0, \"A\\t1\"\n  ;text\n  JMP 0x56\nX");
-
         var sb = new StringBuilder();
-        var tw = new StringWriter(sb);
-
-        var s = new Serializer();
-        s.Serialize(tw, script);
-
-        //var text = sb.ToString();
-
-        Succes();
+        sb.Append("{");
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            if (i > 0) sb.Append(",");
+            var arg = arguments[i];
+            arg.ToString(sb);
+        }
+        sb.Append("}");
+        return sb.ToString();
     }
 
-    static void TestIni()
+    public static void TestArgument<T>(string text, T expected, int position = 1, Converter<T, string>? converter = null) where T : notnull
     {
-        var script = Parse("[S]\nKey = A0, 0x42");
-
-        var section = script.ActiveSection;
-        Assert.IsEqual("S", section.Name);
-
-        Assert.IsEqual(1, section.Count);
-
-        var entry = section[0];
-
-        Assert.IsEqual("Set", entry.Key);
-        Assert.IsEqual("Key", entry.Args[0].Text);
-        Assert.IsEqual("A0", entry.Args[1].Text);
+        Test(text, () =>
+        {
+            var tokens = ParserLexer.Lexer.Tokenize(text)[0];
+            var reader = new TokenReader(tokens);
+            Assert.IsTrue(Argument.Skip(ref reader), "Skip");
+            Assert.IsEqual(position, reader.Position, "Position after Skip");
+            reader.Position = 0;
+            var arg = Argument.Parse(ref reader);
+            Assert.IsEqual(position, reader.Position, "Position after Parse");
+            Assert.IsEqual(typeof(T), arg.Value.GetType());
+            if (converter == null) Assert.IsEqual(expected, arg.Value);
+            else Assert.IsEqual(converter(expected), converter((T)arg.Value));
+        });
     }
-    */
 
     static ScriptCreationObject Parse(string text)
     {

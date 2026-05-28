@@ -12,11 +12,14 @@ public sealed class CompiledFunction
 {
     public string Name { get; }
 
+    public string? Parent { get; }
+
     internal CompiledInstruction[] Instructions { get; }
 
-    internal CompiledFunction(string name, CompiledInstruction[] compiledNode)
+    internal CompiledFunction(string name, string? parent, CompiledInstruction[] compiledNode)
     {
         Name = name;
+        Parent = parent;
         Instructions = compiledNode;
     }
 

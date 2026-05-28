@@ -1,7 +1,7 @@
 ﻿using Grille.IO.IniScript.Tokenization;
 using Grille.IO.IniScript.Utils;
 
-namespace Grille.IO.IniScript.Compilation;
+namespace Grille.IO.IniScript.Compilation.Internal;
 
 using static TokenType;
 using CS = CharSets;
@@ -62,7 +62,7 @@ file static class ParserRules
         Rule.EndOfLine,
         new Rule(Whitespace, IsWhitespace),
         new Rule(LiteralString, IsStringBegin, IsStringContinue),
-        new Rule(InterpolatedString, IsIStringBegin, IsIStringContinue),
+        new Rule(TokenType.InterpolatedString, IsIStringBegin, IsIStringContinue),
         new Rule(Comment, IsLineCommentBegin, IsNotEndOfLine),
         new Rule(Comment, IsMLCommentBegin, IsMLCommentContinue),
         new Rule(Symbol, IsSymbol),

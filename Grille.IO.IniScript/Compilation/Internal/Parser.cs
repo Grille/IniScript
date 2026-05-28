@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript.Compilation;
+namespace Grille.IO.IniScript.Compilation.Internal;
 
 using Grille.IO.IniScript.Evaluation;
 using Grille.IO.IniScript.Tokenization;
@@ -20,17 +20,13 @@ internal class Parser
 {
     private readonly Signature _sectionSignature0;
     private readonly Signature _sectionSignature1;
-    private readonly Signature _assignmentSignature;
 
     public int TabSize { get; set; } = 4;
-
-    public bool ParseEmpty { get; set; } = true;
 
     internal Parser()
     {
         _sectionSignature0 = Signature.New().OpeningBracket('[').Parameter().ClosingBracket();
         _sectionSignature1 = Signature.New().OpeningBracket('[').Parameter().ClosingBracket().Symbol(':').Parameter();
-        _assignmentSignature = Signature.New().Parameter().Symbol('=');
     }
 
     public ScriptCreationObject Parse(string text)
@@ -66,75 +62,81 @@ internal class Parser
         Parse(reader, script);
     }
 
-
     public void Parse(string text, ScriptCreationObject script)
     {
-        var instructions = ParserLexer.Lexer.Tokenize(text);
+        var lines = ParserLexer.Lexer.Tokenize(text);
+        var purged = PurgeTokens(lines);
 
-        for (int i = 0; i < instructions.Length; i++)
+        for (int i = 0; i < purged.Lines.Length; i++)
         {
-            var line = instructions[i];
-            if (line.Length > 1)
-            {
-                ParseLine(line, script);
-            }
+            ParseLine(purged, i, script);
         }
     }
 
-    void ParseLine(ReadOnlySpan<Token> tokens, ScriptCreationObject script)
+    private void ParseLine(PurgedLines purged, int index, ScriptCreationObject script)
     {
-        int line = tokens[0].Location.Row;
-        int indentation = 0;
-
-        var comments = new List<string>();
-        var purgedList = new List<Token>();
-
-        for (int i = 0; i < tokens.Length; i++)
-        {
-            var token = tokens[i];
-            if (token == Whitespace)
-            {
-                if (i == 0)
-                {
-                    indentation = GetIndentation(token);
-                }
-                continue;
-            }
-            else if (token == Comment)
-            {
-                comments.Add(token);
-                continue;
-            }
-            else if (token == EndOfLine || token == EndOfFile)
-            {
-                continue;
-            }
-            purgedList.Add(token);
-        }
-
-        var purgedArray = purgedList.ToArray();
+        var line = purged.Lines[index];
 
         string AsIdentifier(Argument arg) => ((Identifier)arg.Value).Literal;
 
-        if (_sectionSignature0.Matches(purgedArray))
+        if (_sectionSignature0.Matches(line))
         {
-            var args = _sectionSignature0.ExtractArguments(purgedArray);
+            var args = _sectionSignature0.ExtractArguments(line);
             var name = AsIdentifier(args[0]);
             script.GetSection(name);
         }
-        else if (_sectionSignature1.Matches(purgedArray))
+        else if (_sectionSignature1.Matches(line))
         {
-            var args = _sectionSignature1.ExtractArguments(purgedArray);
+            var args = _sectionSignature1.ExtractArguments(line);
             var name = AsIdentifier(args[0]);
             var parentName = AsIdentifier(args[1]);
             script.GetSection(name, parentName);
         }
         else
         {
-            bool isAssignment = purgedArray.Length > 2 && _assignmentSignature.Matches(purgedArray.AsSpan(0, 2));
-            var location = new InstructionLocation(line, indentation);
-            script.CurrentSection.Add(new InstructionInfo(purgedArray, location, comments.ToArray()));
+            script.CurrentSection.Add(new(purged.Lines, index, purged.Locations[index]));
         }
+    }
+
+    private record class PurgedLines(RangedArray<Token> Lines, InstructionLocation[] Locations);
+
+    private PurgedLines PurgeTokens(RangedArray<Token> lines)
+    {
+        int capacity = lines.Items.Length;
+        var purgedTokens = new RangedArrayBuilder<Token>(capacity);
+        var locations = new List<InstructionLocation>(capacity);
+
+        for (int ix = 0; ix < lines.Length; ix++)
+        {
+            var tokens = lines[ix];
+
+            int line = tokens[0].Location.Row;
+            int indentation = 0;
+
+            for (int iy = 0; iy < tokens.Length; iy++)
+            {
+                var token = tokens[iy];
+                if (token == Whitespace)
+                {
+                    if (iy == 0)
+                    {
+                        indentation = GetIndentation(token);
+                    }
+                    continue;
+                }
+                else if (token == EndOfLine || token == EndOfFile || token == Comment)
+                {
+                    continue;
+                }
+                purgedTokens.Add(token);
+            }
+            if (purgedTokens.YieldRange() != -1)
+            {
+                locations.Add(new(line, indentation));
+            }
+        }
+
+        return new(purgedTokens.ToArray(), locations.ToArray());
     }
 
     private int GetIndentation(ReadOnlySpan<char> text)

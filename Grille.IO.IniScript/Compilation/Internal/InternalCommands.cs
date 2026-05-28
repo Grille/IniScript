@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-namespace Grille.IO.IniScript.Compilation;
+namespace Grille.IO.IniScript.Compilation.Internal;
 
 file static class InternalCommandsFunctions
 {

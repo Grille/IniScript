@@ -12,7 +12,7 @@ internal static class NumberSerializer
     {
         public static Result operator -(Result value) => new Result(-value.Integer, -value.Decimal, value.IsDecimal);
 
-        public object ToObject() => IsDecimal ? Decimal : Integer;
+        public object ToObject() => IsDecimal ? Decimal : (object)Integer;
     }
 
     public const uint MaxBase = 10 + 'Z' - 'A';
@@ -132,7 +132,7 @@ internal static class NumberSerializer
                 double result = number / (double)periodBase;
                 if (exponentSign == '-') result /= efactor;
                 else result *= efactor;
-                long resultInt = (long)result;
+                long resultInt = (long)Math.Round(result);
                 return new Result(resultInt, result, resultInt != result);
             }
             else

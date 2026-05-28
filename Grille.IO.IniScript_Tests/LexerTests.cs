@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Grille.ConsoleTestLib.Asserts;
-using Grille.IO.IniScript.Compilation;
+using Grille.IO.IniScript.Compilation.Internal;
 using Grille.IO.IniScript.Tokenization;
 
 namespace Grille.IO.CfgScript_Tests;

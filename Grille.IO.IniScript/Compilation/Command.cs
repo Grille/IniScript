@@ -12,11 +12,19 @@ namespace Grille.IO.IniScript.Compilation;
 
 public class Command
 {
-    private readonly Func<Runtime, object?[], object?> _func;
+    public enum ValidationResult
+    {
+        Valid,
+        NotStatic,
+        MissingArg0Runtime,
+    }
+
+    private readonly Func<Runtime, object[], object?> _func;
     private readonly Type[] _parameterTypes;
 
     public Command(MethodInfo method)
     {
+        AssertValid(method);
         (_func, _parameterTypes, ReturnType) = CreateFunc(method);
     }
 
@@ -28,15 +36,15 @@ public class Command
 
     public bool Returns => ReturnType != typeof(void);
 
-    public object? Invoke(Runtime runtime, object?[] args)
+    public object? Invoke(Runtime runtime, object[] args)
     {
         return _func(runtime, args);
     }
 
-    static (Func<Runtime, object?[], object?>, Type[], Type) CreateFunc(MethodInfo method)
+    static (Func<Runtime, object[], object?>, Type[], Type) CreateFunc(MethodInfo method)
     {
         var runtimeParam = Expression.Parameter(typeof(Runtime), "runtime");
-        var argsParam = Expression.Parameter(typeof(object?[]), "args");
+        var argsParam = Expression.Parameter(typeof(object[]), "args");
 
         var parameters = method.GetParameters();
         var arguments = new Expression[parameters.Length];
@@ -72,4 +80,34 @@ public class Command
 
         return (lambda.Compile(), argsTypes, method.ReturnType);
     }
+
+    private static void AssertValid(MethodInfo method)
+    {
+        if (Validate(method) != ValidationResult.Valid)
+        {
+            throw new InvalidOperationException();
+        }
+    }
+
+    public static ValidationResult Validate(MethodInfo method)
+    {
+        if (!method.IsStatic)
+        {
+            return ValidationResult.NotStatic;
+        }
+        var parameters = method.GetParameters();
+        if (parameters.Length == 0 || parameters[0].ParameterType != typeof(Runtime))
+        {
+            return ValidationResult.MissingArg0Runtime;
+        }
+        return ValidationResult.Valid;
+    }
+
+    public static ValidationResult Validate(Delegate del) => Validate(del.Method);
+
+    public static implicit operator Command(MethodInfo method) => new Command(method);
+
+    public static implicit operator Command(Delegate del) => new Command(del.Method);
+
+    public static implicit operator Func<Runtime, object[], object?>(Command command) => command._func;
 }

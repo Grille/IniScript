@@ -39,11 +39,11 @@ static class SerializerTests
         TestNr("0xFF", 255, 255);
         TestNr("0x10", 16, 16);
         TestNr("0b10", 2, 2);
-        TestNr("9.9", 9, 9.9, true);
-        TestNr("0xF.F", 15, 15.9375, true);
+        TestNr("9.9", 10, 9.9, true);
+        TestNr("0xF.F", 16, 15.9375, true);
         TestNr("2E+1", 20, 20);
         TestNr("2E-1", 0, 0.2, true);
-        TestNr("46.6532", 46, 46.6532, true);
+        TestNr("46.6532", 47, 46.6532, true);
         TestNr("46.0", 46, 46);
     }
 
@@ -70,6 +70,10 @@ static class SerializerTests
             Assert.IsEqual(integer, result.Integer);
             Assert.IsEqual(@decimal, result.Decimal);
             Assert.IsEqual(isDecimal, result.IsDecimal);
+
+            var type = result.ToObject().GetType();
+            if (result.IsDecimal) Assert.IsEqual(typeof(double), type);
+            else Assert.IsEqual(typeof(long), type);
         });
     }
 }

@@ -17,6 +17,8 @@ using Grille.IO.IniScript.Compilation;
 
 namespace Grille.IO.IniScript.Compilation;
 
+using static Argument.SkipResult;
+
 public sealed class Argument
 { 
     public char Modifier { get; }
@@ -25,55 +27,73 @@ public sealed class Argument
 
     public object Value { get; }
 
-    private Argument(object value, char modifier = '\0', Argument? indexer = null)
+    public Argument(object value, char modifier = '\0', Argument? indexer = null)
     {
-        Value = value;
-        Modifier = modifier;
+        (Value, Modifier) = TryApplyModifier(value, modifier);
         Indexer = indexer;
+    }
+
+    (object Value, char Modifier) TryApplyModifier(object value, char modifier)
+    {
+        if (modifier == '-')
+        {
+            if (value is double f64) value = -f64;
+            else if (value is long i64) value = -i64;
+            else throw new ArgumentException();
+            modifier = '\0';
+        }
+        else if (modifier == '+')
+        {
+            if (!(value is double || value is long)) throw new ArgumentException();
+            modifier = '\0';
+        }
+        return (value, modifier);
+    }
+
+    internal enum SkipResult
+    {
+        None,
+        Parsed,
+        Failure,
     }
 
     internal static bool Skip(ref TokenReader tokens)
     {
-        var token = tokens.Next();
-        if (token.Type == TokenType.Symbol)
-        {
-            token = tokens.Next();
-        }
-        if (!SkipArray(ref tokens)) return false;
-        else if (!token.Type.IsParameter) return false;
-        if (!SkipIndexer(ref tokens)) return false;
+        tokens.NextIf(TokenType.Symbol);
+        var array = SkipArray(ref tokens);
+        if (array == Failure) return false;
+        if (array == None && !tokens.Next().Type.IsParameter) return false;
+        if (SkipIndexer(ref tokens) == Failure) return false;
         return true;
     }
 
-    private static bool SkipArray(ref TokenReader tokens)
+    private static SkipResult SkipArray(ref TokenReader tokens)
     {
-        if (!tokens.NextIf("[")) return true;
+        if (!tokens.NextIf("[")) return None;
         while (true)
         {
-            if (!Skip(ref tokens)) return false;
+            if (!Skip(ref tokens)) return Failure;
             if (tokens.NextIf("]")) break;
             else if (tokens.NextIf(",")) continue;
-            else return false;
+            else return Failure;
         }
-        return true;
+        return Parsed;
     }
 
-    private static bool SkipIndexer(ref TokenReader tokens)
+    private static SkipResult SkipIndexer(ref TokenReader tokens)
     {
-        if (!tokens.NextIf("[")) return true;
-        if (!Skip(ref tokens)) return false;
-        if (!tokens.NextIf("]")) return false;
-        return true;
+        if (!tokens.NextIf("[")) return None;
+        if (!Skip(ref tokens)) return Failure;
+        if (!tokens.NextIf("]")) return Failure;
+        return Parsed;
     }
 
     internal static Argument Parse(ref TokenReader tokens)
     {
-        var token = tokens.Next();
         char modifier = '\0';
-        if (token.Type == TokenType.Symbol)
+        if (tokens.NextIf(TokenType.Symbol))
         {
-            modifier = token.AsSpan()[0];
-            token = tokens.Next();
+            modifier = tokens.Current.AsSpan()[0];
         }
         var value = ParseValue(ref  tokens);
         var indexer = ParseIndexer(ref tokens);
@@ -128,4 +148,23 @@ public sealed class Argument
         TokenType.InterpolatedString => throw new NotImplementedException(),
         _ => throw new NotImplementedException(),
     };
+
+    public void ToString(StringBuilder sb)
+    {
+        if (Modifier != '\0') sb.Append(Modifier);
+        sb.Append(Value);
+        if (Indexer != null)
+        {
+            sb.Append('[');
+            Indexer.ToString(sb);
+            sb.Append(']');
+        }
+    }
+
+    public override string ToString()
+    {
+        var sb = new StringBuilder();
+        ToString(sb);
+        return sb.ToString();
+    }
 }

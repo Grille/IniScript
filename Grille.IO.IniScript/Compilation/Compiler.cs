@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Grille.IO.IniScript.Compilation.Internal;
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -61,7 +63,7 @@ public sealed class Compiler
         for (int i = 0; i < func.Count; i++)
         {
             var inst = func[i];
-            if (inst != null && !inst.IsEmpty)
+            if (!inst.IsEmpty)
             {
                 var pair = _commands.GetPair(inst.Tokens);
                 var args = pair.Signature.ExtractArguments(inst.Tokens);
@@ -72,7 +74,7 @@ public sealed class Compiler
 
         var instructionsArray = _instructions.ToArray();
 
-        return new CompiledFunction(func.Key, instructionsArray);
+        return new CompiledFunction(func.Key, func.ParentKey, instructionsArray);
     }
 
     private int GetBlockSize(ScriptCreationObject.Section func, int thisIndex)
