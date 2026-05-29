@@ -1,6 +1,8 @@
 ﻿using Grille.IO.IniScript.Tokenization;
 using Grille.IO.IniScript.Utils;
 
+using System;
+
 namespace Grille.IO.IniScript.Compilation.Internal;
 
 using static TokenType;
@@ -19,8 +21,6 @@ file static class ParserRules
 
         public bool IsSymbol() => ctx.Is(CS.Symbols) && ctx.TokenLength == 0;
 
-        public bool IsBracket() => ctx.Is(CS.Brackets) && ctx.TokenLength == 0;
-
         public bool IsStringBegin() => ctx.Is('"');
 
         public bool IsStringContinue(int minLength) => !(!ctx.Is('\\', -2) && ctx.Is('"', -1) && ctx.TokenLength > minLength);
@@ -38,6 +38,13 @@ file static class ParserRules
         public bool IsMLCommentBegin() => ctx.Is('/') && ctx.Is('*', 1);
 
         public bool IsMLCommentContinue() => !(ctx.Is('*', -2) && ctx.Is('/', -1) && ctx.TokenLength > 2);
+
+        public bool IsCompoundSymbol()
+        {
+            if (ctx.TokenLength == 0) return CS.IsCompoundSymbol(ctx.Char0, ctx.Char1);
+            else if (ctx.TokenLength == 1) return true; 
+            else return false;
+        }
 
         public bool IsNumber()
         {
@@ -65,10 +72,10 @@ file static class ParserRules
         new Rule(TokenType.InterpolatedString, IsIStringBegin, IsIStringContinue),
         new Rule(Comment, IsLineCommentBegin, IsNotEndOfLine),
         new Rule(Comment, IsMLCommentBegin, IsMLCommentContinue),
-        new Rule(Symbol, IsSymbol),
-        new Rule(Bracket, IsBracket),
         new Rule(Word, IsWord),
         new Rule(Number, IsNumber),
+        new Rule(Symbol, IsCompoundSymbol),
+        new Rule(Symbol, IsSymbol),
     ];
 }
 

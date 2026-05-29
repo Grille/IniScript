@@ -12,9 +12,9 @@ internal class InterpolatedString
 {
     public string[] Strings { get; }
 
-    public Argument[] Arguments { get; }
+    public Parameter[] Arguments { get; }
 
-    public InterpolatedString(string[] strings, Argument[] arguments)
+    public InterpolatedString(string[] strings, Parameter[] arguments)
     {
         Strings = strings;
         Arguments = arguments;

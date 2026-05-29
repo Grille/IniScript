@@ -18,87 +18,94 @@ using static Grille.IO.IniScript.Tokenization.TokenType;
 
 internal class Parser                     
 {
-    private readonly Signature _sectionSignature0;
-    private readonly Signature _sectionSignature1;
-
     public int TabSize { get; set; } = 4;
 
-    internal Parser()
+    public AssemblyCreateInfo Parse(string text)
     {
-        _sectionSignature0 = Signature.New().OpeningBracket('[').Parameter().ClosingBracket();
-        _sectionSignature1 = Signature.New().OpeningBracket('[').Parameter().ClosingBracket().Symbol(':').Parameter();
+        var assembly = new AssemblyCreateInfo();
+        Parse(text, assembly);
+        foreach (var pair in assembly)
+        {
+            var section = pair.Value;
+            section.Array = section.List.ToArray();
+            section.List = null!;
+        }
+        foreach (var pair in assembly)
+        {
+            var section = pair.Value;
+            var array = section.Array;
+            for (int i = 0; i < array.Length; i++)
+            {
+                section.Array[i].BlockSize = GetBlockSize(section, i);
+            }
+        }
+        return assembly;
     }
 
-    public ScriptCreationObject Parse(string text)
-    {
-        var script = new ScriptCreationObject();
-        Parse(text, script);
-        return script;
-    }
-
-    public ScriptCreationObject Parse(Stream stream)
-    {
-        var script = new ScriptCreationObject();
-        Parse(stream, script);
-        return script;
-    }
-
-    public ScriptCreationObject Parse(TextReader reader)
-    {
-        var script = new ScriptCreationObject();
-        Parse(reader, script);
-        return script;
-    }
-
-    public void Parse(TextReader reader, ScriptCreationObject script)
-    {
-        var text = reader.ReadToEnd();
-        Parse(text, script);
-    }
-
-    public void Parse(Stream stream, ScriptCreationObject script)
+    public AssemblyCreateInfo Parse(Stream stream)
     {
         using var reader = new StreamReader(stream, leaveOpen: true);
-        Parse(reader, script);
+        return Parse(reader);
     }
 
-    public void Parse(string text, ScriptCreationObject script)
+    public AssemblyCreateInfo Parse(TextReader reader)
+    {
+        return Parse(reader.ReadToEnd());
+    }
+
+    private void Parse(string text, AssemblyCreateInfo assembly)
     {
         var lines = ParserLexer.Lexer.Tokenize(text);
         var purged = PurgeTokens(lines);
 
         for (int i = 0; i < purged.Lines.Length; i++)
         {
-            ParseLine(purged, i, script);
+            ParseLine(purged[i], assembly);
         }
     }
 
-    private void ParseLine(PurgedLines purged, int index, ScriptCreationObject script)
+    private void ParseLine(PurgedLines.Line line, AssemblyCreateInfo assembly)
     {
-        var line = purged.Lines[index];
-
-        string AsIdentifier(Argument arg) => ((Identifier)arg.Value).Literal;
-
-        if (_sectionSignature0.Matches(line))
+        if (!MatchSectionSignatures(line, assembly))
         {
-            var args = _sectionSignature0.ExtractArguments(line);
-            var name = AsIdentifier(args[0]);
-            script.GetSection(name);
-        }
-        else if (_sectionSignature1.Matches(line))
-        {
-            var args = _sectionSignature1.ExtractArguments(line);
-            var name = AsIdentifier(args[0]);
-            var parentName = AsIdentifier(args[1]);
-            script.GetSection(name, parentName);
-        }
-        else
-        {
-            script.CurrentSection.Add(new(purged.Lines, index, purged.Locations[index]));
+            assembly.CurrentSection.List.Add(line.ToInstruction());
         }
     }
 
-    private record class PurgedLines(RangedArray<Token> Lines, InstructionLocation[] Locations);
+    private bool MatchSectionSignatures(PurgedLines.Line line, AssemblyCreateInfo assembly)
+    {
+        var tokens = line.Tokens;
+
+        foreach (var matchInfo in InternalSignatures.SectionSignatures)
+        {
+            if (!matchInfo.Signature.Matches(tokens)) continue;
+
+            int argsIndex = 0;
+            var args = matchInfo.Signature.ExtractArguments(tokens);
+            string AsIdentifier() => ((Identifier)args[argsIndex++].Value).Literal;
+            Parameter[] AsParameterArray() => (Parameter[])args[argsIndex++].Value;
+
+            var section = assembly.GetSection(AsIdentifier());
+            if (matchInfo.HasParameters) section.Parameters = AsParameterArray();
+            if (matchInfo.HasParent) section.ParentKey = AsIdentifier();
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private record class PurgedLines(RangedArray<Token> Lines, InstructionLocation[] Locations)
+    {
+        public readonly record struct Line(PurgedLines Parent, int Index)
+        {
+            public ReadOnlySpan<Token> Tokens => Parent.Lines[Index];
+
+            public InstructionCreateInfo ToInstruction() => new(Parent.Lines, Index, Parent.Locations[Index]);
+        }
+
+        public Line this[int index] => new Line(this, index);
+    }
 
     private PurgedLines PurgeTokens(RangedArray<Token> lines)
     {
@@ -152,5 +159,30 @@ internal class Parser
             };
         }
         return count;
+    }
+
+    private int GetBlockSize(AssemblyCreateInfo.Section func, int thisIndex)
+    {
+        var array = func.Array;
+
+        var thisInstruction = array[thisIndex];
+        var thisIndentation = thisInstruction.Location.Indentation;
+
+        int nextIndex = thisIndex + 1;
+
+        while (nextIndex < array.Length)
+        {
+            var nextInstruction = array[nextIndex];
+            var nextIndentation = thisInstruction.Location.Indentation;
+
+            if (nextIndentation <= thisIndentation && !nextInstruction.IsEmpty)
+            {
+                break;
+            }
+
+            nextIndex += 1;
+        }
+
+        return nextIndex - thisIndex - 1;
     }
 }

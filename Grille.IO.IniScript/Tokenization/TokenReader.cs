@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -47,6 +48,9 @@ internal ref struct TokenReader
     public bool NextIf(Predicate<Token> predicate) => IncIfTrue(predicate(Current));
 
     public Token Peek(int offset = 1) => this[Position + offset];
+
+    [DoesNotReturn]
+    public void ThrowUnexpected() => throw new UnexpectedTokenException(Current);
 
     public static implicit operator TokenReader(ReadOnlySpan<Token> tokens) => new TokenReader(tokens);
 }

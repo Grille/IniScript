@@ -16,7 +16,7 @@ internal readonly struct Token
     public readonly TokenType Type;
     public readonly TokenLocation Location;
 
-    public int End => Start + Length;
+    public Range Range => new Range(Start, Start + Length + 1);
 
     public Token(string text, int start, int length, TokenType type, TokenLocation location)
     {
@@ -34,6 +34,8 @@ internal readonly struct Token
     public string Substring() => _text.Substring(Start, Length);
 
     public ReadOnlySpan<char> AsSpan() => _text.AsSpan(Start, Length);
+
+    public ReadOnlyMemory<char> AsMemory() => _text.AsMemory(Start, Length);
 
     public override string ToString() => $"{StringSerializer.Serialize(AsSpan())} {Type}";
 
@@ -62,6 +64,8 @@ internal readonly struct Token
     public static bool operator !=(Token left, (string Value, TokenType Type) right) => !(left == right);
 
     public static implicit operator ReadOnlySpan<char>(Token token) => token.AsSpan();
+
+    public static implicit operator ReadOnlyMemory<char>(Token token) => token.AsMemory();
 
     public static implicit operator string(Token token) => token.Substring();
 

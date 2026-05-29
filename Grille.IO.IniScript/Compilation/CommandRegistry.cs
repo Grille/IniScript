@@ -17,18 +17,20 @@ namespace Grille.IO.IniScript.Compilation;
 
 public sealed class CommandRegistry
 {
-    internal class CommandSignatureRegistry
+    public class RegistryLevel
     {
         public readonly record struct Pair(Command Command, Signature Signature);
 
         private readonly List<Pair> _list = new();
 
-        private int FindOverlapIndex(Signature signature)
+        internal RegistryLevel() { }
+
+        private int FindFirstIndex(Signature signature)
         {
             for (int i = 0; i < _list.Count; i++)
             {
                 var pair = _list[i];
-                if (signature.Overlaps(pair.Signature))
+                if (signature.Matches(pair.Signature))
                 {
                     return i;
                 }
@@ -43,7 +45,7 @@ public sealed class CommandRegistry
                 throw new ArgumentException();
             }
             var pair = new Pair(command, signature);
-            int index = FindOverlapIndex(signature);
+            int index = FindFirstIndex(signature);
             if (index != -1)
             {
                 if (!allowOveride)
@@ -63,7 +65,7 @@ public sealed class CommandRegistry
 
         public bool TryGetPair(Signature signature, [MaybeNullWhen(false)] out Pair result)
         {
-            int index = FindOverlapIndex(signature);
+            int index = FindFirstIndex(signature);
             if (index != -1)
             {
                 result = _list[index];
@@ -88,18 +90,21 @@ public sealed class CommandRegistry
         }
     }
 
-    private readonly CommandSignatureRegistry _level0Default = new();
+    private readonly RegistryLevel[] _levels;
 
-    private readonly CommandSignatureRegistry _level1Fallback = new();
+    public ReadOnlySpan<RegistryLevel> Levels => _levels;
 
     public Func<MethodInfo, Signature[]>? SignatureFactory { get; set; }
 
     public bool AllowOveride { get; set; } = false;
 
-    public CommandRegistry()
+    public CommandRegistry(int levelCount = 4)
     {
-        _level0Default = new();
-        _level1Fallback = new();
+        _levels = new RegistryLevel[levelCount];
+        for (int i = 0; i < _levels.Length; i++)
+        {
+            _levels[i] = new();
+        }
     }
 
     public void RegisterDefault()
@@ -115,27 +120,22 @@ public sealed class CommandRegistry
 
     private Signature[] CreateSignatures(MethodInfo method) => (SignatureFactory ?? DefaultSignatureFactory)(method);
 
-    public void RegisterFallback(Command command, Signature signature)
+    public void Register(Command command, Signature signature, int level = 0)
     {
-        _level1Fallback.Register(command, signature, true);
+        _levels[0].Register(command, signature, AllowOveride);
     }
 
-    public void Register(Command command, Signature signature)
-    {
-        _level0Default.Register(command, signature, AllowOveride);
-    }
-
-    public void Register(MethodInfo method)
+    public void Register(MethodInfo method, int level = 0)
     {
         var signatures = CreateSignatures(method);
         var command = new Command(method);
         foreach (var signature in signatures)
         {
-            Register(command, signature);
+            Register(command, signature, level);
         }
     }
 
-    public void Register(Delegate del) => Register(del.Method);
+    public void Register(Delegate del, int level = 0) => Register(del.Method, level);
 
     public int Register(Type type)
     {
@@ -151,7 +151,7 @@ public sealed class CommandRegistry
         return count;
     }
 
-    public struct Result
+    public readonly struct Result
     {
         public readonly int Level;
         public readonly Signature Signature;
@@ -167,15 +167,13 @@ public sealed class CommandRegistry
 
     public bool TryGetPair(Signature signature, [MaybeNullWhen(false)] out Result result)
     {
-        if (_level0Default.TryGetPair(signature, out var pair0))
+        for (int i = 0; i < _levels.Length; i++)
         {
-            result = new Result(pair0.Command, pair0.Signature, 0);
-            return true;
-        }
-        if (_level1Fallback.TryGetPair(signature, out var pair1))
-        {
-            result = new Result(pair1.Command, pair1.Signature, 1);
-            return true;
+            if (_levels[i].TryGetPair(signature, out var pair0))
+            {
+                result = new Result(pair0.Command, pair0.Signature, 0);
+                return true;
+            }
         }
         result = default;
         return false;
@@ -188,15 +186,13 @@ public sealed class CommandRegistry
 
     internal bool TryGetPair(ReadOnlySpan<Token> tokens, [MaybeNullWhen(false)] out Result result)
     {
-        if (_level0Default.TryGetPair(tokens, out var pair0))
+        for (int i = 0; i < _levels.Length; i++)
         {
-            result = new Result(pair0.Command, pair0.Signature, 0);
-            return true;
-        }
-        if (_level1Fallback.TryGetPair(tokens, out var pair1))
-        {
-            result = new Result(pair1.Command, pair1.Signature, 1);
-            return true;
+            if (_levels[i].TryGetPair(tokens, out var pair0))
+            {
+                result = new Result(pair0.Command, pair0.Signature, 0);
+                return true;
+            }
         }
         result = default;
         return false;

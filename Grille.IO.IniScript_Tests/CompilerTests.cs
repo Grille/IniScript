@@ -10,7 +10,7 @@ namespace Grille.IO.IniScript_Tests;
 
 public static class CompilerTests
 {
-    /*
+    
     public static void Run()
     {
         Section("Compiler");
@@ -20,25 +20,18 @@ public static class CompilerTests
 
     static void Test0()
     {
-        (var compiler, var sb) = GetCompiler();
-        var script = compiler.Compile("A;\nP(cc)");
-
-        script.Invoke();
-
-        var text = sb.ToString();
-
-        Assert.IsEqual("Acc", text);
+        var compiler = GetCompiler();
+        var asm = compiler.Compile("A");
+        var runtime = new Runtime(asm, compiler);
     }
 
-    static (Compiler, StringBuilder) GetCompiler()
+    static void A(Runtime runtime) => runtime.ValueStack.Push("A");
+
+    static Compiler GetCompiler()
     {
-        var sb = new StringBuilder();
-
         var commands = new CommandRegistry();
-        commands.Register("A", (r) => sb.Append("A"));
-        commands.Register("P", (r, a) => sb.Append(a.Text));
-        var compiler = new Compiler(commands);
-        return (compiler, sb);
+        commands.Register(A);
+        return new Compiler(commands);
     }
-    */
+    
 }

@@ -83,9 +83,10 @@ public class Command
 
     private static void AssertValid(MethodInfo method)
     {
-        if (Validate(method) != ValidationResult.Valid)
+        var code = Validate(method);
+        if (code != ValidationResult.Valid)
         {
-            throw new InvalidOperationException();
+            throw new InvalidOperationException($"{code}");
         }
     }
 

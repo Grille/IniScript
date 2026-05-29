@@ -1,12 +1,10 @@
-﻿using Grille.IO.IniScript.Tokenization;
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Grille.IO.IniScript.Compilation;
+namespace Grille.IO.IniScript.Tokenization;
 
 public class UnexpectedTokenException : Exception
 {

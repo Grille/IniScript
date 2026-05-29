@@ -19,10 +19,10 @@ public static class LexerTests
         Token Token(TokenType type, string value) => new Token(value, type);
 
         var equals = Token(Symbol, "=");
-        var open = Token(Bracket, "(");
-        var close = Token(Bracket, ")");
-        var secopen = Token(Bracket, "[");
-        var secclose = Token(Bracket, "]");
+        var open = Token(Symbol, "(");
+        var close = Token(Symbol, ")");
+        var secopen = Token(Symbol, "[");
+        var secclose = Token(Symbol, "]");
 
         var key = Token(Word, "Key");
         var arg0 = Token(Word, "Arg0");
@@ -61,6 +61,10 @@ public static class LexerTests
         TestToken("$\"str\"", InterpolatedString);
         TestToken("$\"str{}str\"", InterpolatedString);
         TestToken("$\"str{\"str\"}str\"", InterpolatedString);
+        TestToken("=", Symbol);
+        TestToken("==", Symbol);
+        TestToken("->", Symbol);
+        TestToken("=>", Symbol);
 
         Section("Lexer Groups");
 

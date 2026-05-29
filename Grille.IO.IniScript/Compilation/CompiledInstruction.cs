@@ -11,11 +11,11 @@ namespace Grille.IO.IniScript.Compilation;
 public class CompiledInstruction
 {
     private readonly Command _command;
-    private readonly Argument[] _arguments;
+    private readonly Parameter[] _arguments;
 
     public int BlockSize { get; }
 
-    internal CompiledInstruction(Command command, Argument[] arguments, int blockSize = 0)
+    internal CompiledInstruction(Command command, Parameter[] arguments, int blockSize = 0)
     {
         _command = command;
         _arguments = arguments;

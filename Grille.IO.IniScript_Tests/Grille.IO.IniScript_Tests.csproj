@@ -15,4 +15,10 @@
     <ProjectReference Include="..\Grille.IO.IniScript\Grille.IO.IniScript.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Script.ini">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

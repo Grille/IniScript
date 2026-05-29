@@ -9,7 +9,7 @@ using System.Xml.Linq;
 
 namespace Grille.IO.IniScript.Compilation.Internal;
 
-file static class InternalCommandsFunctions
+file static class InternalCommandsMethods
 {
     extension(Runtime runtime)
     {
@@ -23,12 +23,12 @@ file static class InternalCommandsFunctions
             runtime.PeakScope[key] = value;
         }
 
-        public void Push( object arg)
+        public void Push(object arg)
         {
             runtime.ValueStack.Push(arg);
         }
 
-        public void Push(Argument[] args)
+        public void Push(Parameter[] args)
         {
             for (int i = 1; i < args.Length; i++)
             {
@@ -41,12 +41,12 @@ file static class InternalCommandsFunctions
             runtime.PeakScope[arg] = runtime.ValueStack.Pop();
         }
 
-        public void Return(Argument[] args)
+        public void Return(Parameter[] args)
         {
 
         }
 
-        public void GetReturnValue(Argument args)
+        public void GetReturnValue(Parameter args)
         {
 
         }

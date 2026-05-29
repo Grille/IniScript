@@ -19,6 +19,7 @@ static class ParserTests
 
         Test("Lines", Lines);
         Test("Sections", Sections);
+        Test("SectionArgs", SectionArgs);
 
         Section("Parser Arguments");
         TestArgument<double>("0.123", 0.123);
@@ -26,7 +27,7 @@ static class ParserTests
         TestArgument<long>("0xFF", 0xFF);
         TestArgument<string>("\"str\"", "str");
         TestArgument<Identifier>("Key", "Key");
-        TestArgument<Argument[]>("[0,1]", [new Argument(0L), new Argument(1L)], 5, ToString);
+        TestArgument<Parameter[]>("[0,1]", [new Parameter(0L), new Parameter(1L)], 5, ToString);
     }
 
     static void Lines()
@@ -34,11 +35,11 @@ static class ParserTests
         var script = Parse("\n\n\n  K\n");
 
         var section = script.CurrentSection;
-        Assert.IsEqual(ScriptCreationObject.DefaultSectionName, section.Key);
+        Assert.IsEqual(AssemblyCreateInfo.DefaultKey, section.Key);
 
-        Assert.IsEqual(1, section.Count, "Sections.Count");
+        Assert.IsEqual(1, section.Array.Length, "Sections.Count");
 
-        var entry = section[0];
+        var entry = section.Array[0];
         Assert.IsEqual("K", entry.Tokens[0], "Key");
         Assert.IsEqual(3, entry.Location.Line, "Line");
         Assert.IsEqual(2, entry.Location.Indentation, "Indentation");
@@ -47,14 +48,29 @@ static class ParserTests
     static void Sections()
     {
         var script = Parse("[A]\n[B]:A\n");
-        Assert.IsEqual(script.Count, 3);
-        Assert.IsTrue(script.ContainsKey(ScriptCreationObject.DefaultSectionName));
+        Assert.IsEqual(3, script.Count);
+        Assert.IsTrue(script.ContainsKey(AssemblyCreateInfo.DefaultKey));
         Assert.IsTrue(script.ContainsKey("A"));
         Assert.IsTrue(script.ContainsKey("B"));
         Assert.IsEqual("A", script["B"].ParentKey);
     }
 
-    private static string ToString(Argument[] arguments)
+    static void SectionArgs()
+    {
+        var script = Parse("[A](arg0, arg1)");
+        Assert.IsEqual(2, script.Count);
+        Assert.IsTrue(script.ContainsKey("A"));
+
+        var section = script["A"];
+        Assert.IsTrue(section.Parameters != null);
+
+        var args = section.Parameters!;
+        Assert.IsEqual(2, args.Length);
+        Assert.IsEqual("arg0", args[0].Value.ToString());
+        Assert.IsEqual("arg1", args[1].Value.ToString());
+    }
+
+    private static string ToString(Parameter[] arguments)
     {
         var sb = new StringBuilder();
         sb.Append("{");
@@ -74,10 +90,10 @@ static class ParserTests
         {
             var tokens = ParserLexer.Lexer.Tokenize(text)[0];
             var reader = new TokenReader(tokens);
-            Assert.IsTrue(Argument.Skip(ref reader), "Skip");
+            Assert.IsTrue(ParameterParser.Skip(ref reader) == ParameterParser.SkipResult.Parsed, "Skip");
             Assert.IsEqual(position, reader.Position, "Position after Skip");
             reader.Position = 0;
-            var arg = Argument.Parse(ref reader);
+            var arg = ParameterParser.Parse(ref reader);
             Assert.IsEqual(position, reader.Position, "Position after Parse");
             Assert.IsEqual(typeof(T), arg.Value.GetType());
             if (converter == null) Assert.IsEqual(expected, arg.Value);
@@ -85,7 +101,7 @@ static class ParserTests
         });
     }
 
-    static ScriptCreationObject Parse(string text)
+    static AssemblyCreateInfo Parse(string text)
     {
         var parser = new Parser();
         return parser.Parse(text);

@@ -1,4 +1,5 @@
 ﻿using Grille.IO.IniScript.Tokenization;
+using Grille.IO.IniScript.Utils;
 
 using System;
 using System.Collections.Generic;
@@ -9,31 +10,40 @@ using System.Threading.Tasks;
 
 namespace Grille.IO.IniScript.Compilation;
 
+using static ParameterParser;
+
 public sealed class Signature 
 {
     internal enum MatchType
     {
+        None,
         Keyword,
-        Parameter,
         Symbol,
-        Bracket,
+        Parameter,
+        ParameterList,
     }
 
     internal class TokenMatcher
     {
-        public readonly MatchType MatchType;
+        public readonly MatchType Type;
         public readonly string? Text;
         public readonly int? ParameterIndex;
 
-        internal TokenMatcher(MatchType types, string ? text = null, int paraIdx = -1)
+        private TokenMatcher() => Type = MatchType.None;
+
+        internal TokenMatcher(MatchType type, string text)
         {
-            MatchType = types;
+            Type = type;
             Text = text;
-            if (paraIdx >= 0)
-            {
-                ParameterIndex = paraIdx;
-            }
         }
+
+        internal TokenMatcher(MatchType type, int parameterIndex)
+        {
+            Type = type;
+            ParameterIndex = parameterIndex;
+        }
+
+        public static readonly TokenMatcher Empty = new();
 
         private static bool MatchTypeCollision(MatchType type0, MatchType type1)
         {
@@ -41,8 +51,8 @@ public sealed class Signature
             {
                 MatchType.Keyword => 0,
                 MatchType.Parameter => 0,
+                MatchType.ParameterList => 0,
                 MatchType.Symbol => 1,
-                MatchType.Bracket => 2,
                 _ => 0,
             };
             return GetCode(type0) == GetCode(type1);
@@ -54,22 +64,25 @@ public sealed class Signature
             return text0 == text1;
         }
 
-        public bool Overlaps(TokenMatcher match)
+        public bool Matches(TokenMatcher match)
         {
-            return MatchTypeCollision(MatchType, match.MatchType) && TextCollision(Text, match.Text);
+            return MatchTypeCollision(Type, match.Type) && TextCollision(Text, match.Text);
         }
 
         public bool Matches(ref TokenReader tokens)
         {
-            if (MatchType == MatchType.Parameter)
+            if (Type == MatchType.Parameter)
             {
-                return Argument.Skip(ref tokens);
+                return Skip(ref tokens) == SkipResult.Parsed;
             }
-            var tokenType = MatchType switch
+            else if (Type == MatchType.ParameterList)
+            {
+                return SkipInlineArray(ref tokens) != SkipResult.Error;
+            }
+            var tokenType = Type switch
             {
                 MatchType.Keyword => TokenType.Word,
                 MatchType.Symbol => TokenType.Symbol,
-                MatchType.Bracket => TokenType.Bracket,
                 _ => TokenType.None,
             };
             var token = tokens.Next();
@@ -77,6 +90,26 @@ public sealed class Signature
             if (Text != null && Text != token) return false;
             return true;
         }
+
+        public void ToString(StringBuilder sb)
+        {
+            if (ParameterIndex.HasValue)
+            {
+                sb.Append(Type switch
+                {
+                    MatchType.Parameter => "#",
+                    MatchType.ParameterList => "#LIST",
+                    _ => "#ERROR"
+                });
+                sb.Append(ParameterIndex.Value);
+            }
+            else
+            {
+                sb.Append(Text!);
+            }
+        }
+
+        public override string ToString() => StringBuilder.ToString(ToString);
     }
 
     private readonly TokenMatcher[] _matchTokens;
@@ -96,6 +129,14 @@ public sealed class Signature
 
     public static SignatureBuilder New() => new SignatureBuilder();
 
+    public SignatureBuilder EditCopy()
+    {
+        var sb = new SignatureBuilder();
+        foreach (var token in _matchTokens) sb.Add(token);
+        sb.ParameterIndex = ParameterCount;
+        return sb;
+    }
+
     public static Signature CreateFunc(string key, int argumentCount = 0, bool requireParentesis = false)
     {
         var sb = new SignatureBuilder();
@@ -104,7 +145,7 @@ public sealed class Signature
 
         if (requireParentesis)
         {
-            sb.OpeningBracket('(');
+            sb.OpenBracket('(');
         }
 
         for (int i = 0; i < argumentCount; i++)
@@ -114,23 +155,22 @@ public sealed class Signature
 
         if (requireParentesis)
         {
-            sb.ClosingBracket();
+            sb.CloseBracket();
         }
 
         return sb.CreateSignature();
     }
 
-
     public int ParameterCount { get; }
 
     public int Length => _matchTokens.Length;
 
-    public bool Overlaps(Signature signature)
+    public bool Matches(Signature signature)
     {
         if (Length != signature.Length) return false;
         for (int i = 0; i < _matchTokens.Length; i++)
         {
-            if (!_matchTokens[i].Overlaps(signature._matchTokens[i])) return false;
+            if (!_matchTokens[i].Matches(signature._matchTokens[i])) return false;
         }
         return true;
     }
@@ -149,20 +189,29 @@ public sealed class Signature
         return !tokens.CanRead;
     }
 
-    internal Argument[] ExtractArguments(TokenReader tokens)
+    internal Parameter[] ExtractArguments(TokenReader tokens)
     {
-        var args = new Argument[ParameterCount];
+        var args = new Parameter[ParameterCount];
         ExtractArguments(tokens, args);
         return args;
     }
 
-    internal void ExtractArguments(TokenReader tokens, Span<Argument> args)
+    internal void ExtractArguments(TokenReader tokens, Span<Parameter> args)
     {
+        if (args.Length != ParameterCount) throw new ArgumentException();
         foreach (var match in _matchTokens)
         {
             if (match.ParameterIndex.HasValue)
             {
-                args[match.ParameterIndex.Value] = Argument.Parse(ref tokens);
+                if (match.Type == MatchType.Parameter)
+                {
+                    args[match.ParameterIndex.Value] = Parse(ref tokens);
+                }
+                else if (match.Type == MatchType.ParameterList)
+                {
+                    args[match.ParameterIndex.Value] = new(ParseInlineArray(ref tokens));
+                }
+                else throw new InvalidOperationException($"{match.Type}");
             }
             else
             {
@@ -170,4 +219,14 @@ public sealed class Signature
             }
         }
     }
+
+    public void ToString(StringBuilder sb)
+    {
+        foreach (var match in _matchTokens)
+        {
+            match.ToString(sb);
+        }
+    }
+
+    public override string ToString() => StringBuilder.ToString(ToString);
 }

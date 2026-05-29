@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Grille.IO.IniScript.Compilation;
+
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -7,14 +9,13 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
-
-using Grille.IO.IniScript.Compilation;
+using System.Xml.Linq;
 
 namespace Grille.IO.IniScript.Evaluation;
 
 public sealed class Runtime : IDisposable
 {
-    readonly Dictionary<string, CompiledFunction> _functions;
+    public IniAssembly Assembly { get; }
 
     public ConverterRegistry Converters { get; }
 
@@ -28,12 +29,12 @@ public sealed class Runtime : IDisposable
 
     public Scope PeakScope => ScopeStack.Peek();
 
-    public Runtime() : this(null) { }
+    public Identifier Namespace { get; set; }
 
-    public Runtime(Compiler? compiler)
+    public Runtime(IniAssembly assembly, Compiler? compiler = null)
     {
-        _functions = new Dictionary<string, CompiledFunction>();
-
+        Namespace = Identifier.Empty;
+        Assembly = assembly;
         Compiler = compiler;
 
         Converters = new ConverterRegistry();
@@ -46,7 +47,6 @@ public sealed class Runtime : IDisposable
 
     public void Clear()
     {
-        _functions.Clear();
         ScopeStack.Clear();
         ValueStack.Clear();
     }
@@ -56,33 +56,14 @@ public sealed class Runtime : IDisposable
 
     }
 
-    public void Import(string script)
-    {
-        
-    }
-
-    public void Import(CompiledScript script)
-    {
-        foreach (var func in script.Functions)
-        {
-            _functions[func.Key] = func.Value;
-        }
-    }
-
-    public void Call(string name)
-    {
-        var func = _functions[name];
-        Call(func);
-    }
-
-    public void Call(CompiledFunction function)
+    public void Call(Identifier function)
     {
         IncrementScope(function.Name);
-        function.Invoke(this);
+        //function.Invoke(this);
         DecrementScope();
     }
 
-    internal object CastArgument(Argument arg, Type type)
+    internal object CastArgument(Parameter arg, Type type)
     {
         if (arg.Value != null)
         {

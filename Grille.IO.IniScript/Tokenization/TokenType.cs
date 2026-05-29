@@ -20,7 +20,6 @@ internal enum TokenType
     InterpolatedString,
 
     Symbol,
-    Bracket,
 
     EndOfLine,
     EndOfFile,

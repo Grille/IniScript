@@ -15,7 +15,7 @@ internal class Program
         SerializerTests.Run();
         LexerTests.Run();
         ParserTests.Run();
-        //CompilerTests.Run();
+        CompilerTests.Run();
 
         RunTests();
     }

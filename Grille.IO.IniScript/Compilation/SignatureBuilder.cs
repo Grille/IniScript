@@ -16,46 +16,59 @@ public sealed class SignatureBuilder
 
     private readonly Stack<char> _bracketStack = new();
 
+    public string? AutoSeperator { get; set; } = ",";
+
     public int ParameterIndex { get; set; } = 0;
 
     public bool RequireSeperator { get; private set; } = false;
 
     public int Count => _tokens.Count;
 
-    private void Add(MatchType type, string? text = null, int argIndex = -1)
+    private TokenMatcher LastItem => _tokens.Count > 0 ? _tokens[^1] : TokenMatcher.Empty;
+
+    internal void Add(TokenMatcher matcher)
     {
-        _tokens.Add(new TokenMatcher(type, text, argIndex));
+        _tokens.Add(matcher);
     }
+
+    private void Add(MatchType type, string text) => Add(new(type, text));
+
+    private void Add(MatchType type, int parameterIndex) => Add(new(type, parameterIndex));
 
     private void AddRequiredSeperator()
     {
-        if (RequireSeperator)
-        {
-            Add(MatchType.Symbol, ",");
-            RequireSeperator = false;
-        }
+        if (!RequireSeperator) return;
+        if (AutoSeperator != null) Symbol(AutoSeperator);
+        else RequireSeperator = false;
     }
 
     public SignatureBuilder Keyword(string key)
     {
-        AddRequiredSeperator();
         Add(MatchType.Keyword, key);
-        RequireSeperator = true;
         return this;
-    }
-
-    public SignatureBuilder Parameter(int index)
-    {
-        ParameterIndex = index;
-        return Parameter();
     }
 
     public SignatureBuilder Parameter()
     {
         AddRequiredSeperator();
-        Add(MatchType.Parameter, null, ParameterIndex++);
+        Add(MatchType.Parameter, ParameterIndex++);
         RequireSeperator = true;
         return this;
+    }
+
+    public SignatureBuilder ParameterList()
+    {
+        AddRequiredSeperator();
+        Add(MatchType.ParameterList, ParameterIndex++);
+        RequireSeperator = true;
+        return this;
+    }
+
+    private void AssertIsNotCompoundSymbol(char c1)
+    {
+        if (LastItem.Type != MatchType.Symbol || LastItem.Text!.Length != 1) return;
+        char c0 = LastItem.Text[0];
+        if (CharSets.IsCompoundSymbol(c0, c1)) throw new ArgumentException($"'{c0}{c1}' form CompoundSymbol");
     }
 
     private static int CharSetIndex(char c, string set)
@@ -65,27 +78,53 @@ public sealed class SignatureBuilder
         return index;
     }
 
-    public SignatureBuilder Symbol(char symbol)
+    public SignatureBuilder Symbol(string symbol)
     {
-        CharSetIndex(symbol, CharSets.Symbols);
-        Add(MatchType.Symbol, symbol.ToString());
+        if (symbol.Length == 1)
+        {
+            if (LastItem.Type == MatchType.ParameterList && symbol == ",")
+            {
+                throw new ArgumentException("Symbol ',' not valid after ParameterList");
+            }
+            CharSetIndex(symbol[0], CharSets.Symbols);
+            AssertIsNotCompoundSymbol(symbol[0]);
+        }
+        else if (symbol.Length == 2)
+        {
+            if (!CharSets.IsCompoundSymbol(symbol[0], symbol[1]))
+            {
+                throw new ArgumentException($"String {symbol} not in '{CharSets.CompoundSymbols}'");
+            }
+        }
+        else
+        {
+            throw new ArgumentException("String.Length must be 1 or 2");
+        }
+        Add(MatchType.Symbol, symbol);
         RequireSeperator = false;
         return this;
     }
 
-    public SignatureBuilder OpeningBracket(char bracket)
+    public SignatureBuilder Symbol(char symbol) => Symbol(symbol.ToString());
+
+    public SignatureBuilder OpeningBracket(string bracket)
     {
-        int index = CharSetIndex(bracket, CharSets.OpeningBrackets);
+        if (bracket.Length != 1) throw new ArgumentException("String.Length must be 1");
+        int index = CharSetIndex(bracket[0], CharSets.OpeningBrackets);
+        AssertIsNotCompoundSymbol(bracket[0]);
         _bracketStack.Push(CharSets.ClosingBrackets[index]);
-        Add(MatchType.Bracket, bracket.ToString());
+        Add(MatchType.Symbol, bracket);
         RequireSeperator = false;
         return this;
     }
 
-    public SignatureBuilder ClosingBracket()
+    public SignatureBuilder OpenBracket(char bracket) => OpeningBracket(bracket.ToString());
+
+    public SignatureBuilder CloseBracket()
     {
         var bracket = _bracketStack.Pop();
-        Add(MatchType.Bracket, bracket.ToString());
+        AssertIsNotCompoundSymbol(bracket);
+        Add(MatchType.Symbol, bracket.ToString());
         RequireSeperator = false;
         return this;
     }
@@ -94,7 +133,7 @@ public sealed class SignatureBuilder
     {
         while (_bracketStack.Count > 0)
         {
-            ClosingBracket();
+            CloseBracket();
         }
         return new Signature(_tokens.ToArray());
     }

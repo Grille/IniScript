@@ -1,4 +1,5 @@
 ﻿using Grille.IO.IniScript.Compilation.Internal;
+using Grille.IO.IniScript.Evaluation;
 
 using System;
 using System.Collections.Generic;
@@ -7,108 +8,84 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+
+
 namespace Grille.IO.IniScript.Compilation;
+
+using static CommandRegistry.RegistryLevel;
 
 public sealed class Compiler
 {
-    readonly Parser _parser;
-    readonly List<CompiledFunction> _functions;
-    readonly List<CompiledInstruction> _instructions;
-    readonly CommandRegistry _commands;
+    readonly static Parser _parser = new();
 
-    public CommandRegistry Commands => _commands;
+    public CommandRegistry Commands { get; }
 
     public Compiler(CommandRegistry commands)
     {
-        _commands = commands;
-        _parser = new();
-        _functions = new();
-        _instructions = new();
+        Commands = commands;
     }
 
-    internal Compiler(CommandRegistry commands, Parser parser)
-    {
-        _commands = commands;
-        _parser = parser;
-        _functions = new();
-        _instructions = new();
-    }
+    public IniAssembly Compile(string script) => Compile(_parser.Parse(script));
 
-    public CompiledScript Compile(string script) => Compile(_parser.Parse(script));
-
-    public CompiledScript Compile(Stream script) => Compile(_parser.Parse(script));
+    public IniAssembly Compile(Stream script) => Compile(_parser.Parse(script));
     
-    public CompiledScript Compile(TextReader script) => Compile(_parser.Parse(script));
+    public IniAssembly Compile(TextReader script) => Compile(_parser.Parse(script));
 
-    internal CompiledScript Compile(ScriptCreationObject script)
+    public void Compile(string script, IniAssembly assembly) => Compile(_parser.Parse(script), assembly);
+
+    public void Compile(Stream script, IniAssembly assembly) => Compile(_parser.Parse(script), assembly);
+
+    public void Compile(TextReader script, IniAssembly assembly) => Compile(_parser.Parse(script), assembly);
+
+    private IniAssembly Compile(AssemblyCreateInfo info)
     {
-        _functions.Clear();
-
-        foreach (var func in script.Values)
-        {
-            _functions.Add(Compile(func));
-        }
-
-        var functions = _functions.ToArray();
-
-        return new CompiledScript(functions);
+        var assembly = new IniAssembly();
+        Compile(info, assembly);
+        return assembly;
     }
 
-    internal CompiledFunction Compile(ScriptCreationObject.Section func)
+    private void Compile(AssemblyCreateInfo info, IniAssembly assembly)
     {
-        _instructions.Clear();
-
-        int[] blockSize = GetBlockSizes(func);
-
-        for (int i = 0; i < func.Count; i++)
+        foreach (var func in info.Values)
         {
-            var inst = func[i];
-            if (!inst.IsEmpty)
+            assembly[func.Key] = Compile(func);
+        }
+    }
+
+    private CompiledFunction Compile(AssemblyCreateInfo.Section section)
+    {
+        var src = section.Array;
+        var dst = new List<CompiledInstruction>(src.Length * 2);
+
+        for (int i = 0; i < src.Length; i++)
+        {
+            Compile(src[i], dst);
+        }
+
+        return new CompiledFunction(section.Key, section.ParentKey, dst.ToArray());
+    }
+
+    private void Compile(InstructionCreateInfo info, List<CompiledInstruction> dst)
+    {
+        CompiledInstruction Build(Pair pair)
+        {
+            var args = pair.Signature.ExtractArguments(info.Tokens);
+            return new CompiledInstruction(pair.Command, args, info.BlockSize);
+        }
+
+        var tokens = info.Tokens;
+        bool isAssignment = InternalSignatures.IsAssignment(tokens);
+
+        for (int i = 0; i < Commands.Levels.Length; i++)
+        {
+            var level = Commands.Levels[i];
+
+            if (level.TryGetPair(info.Tokens, out var pair))
             {
-                var pair = _commands.GetPair(inst.Tokens);
-                var args = pair.Signature.ExtractArguments(inst.Tokens);
-                var instruction = new CompiledInstruction(pair.Command, args, blockSize[i]);
-                _instructions.Add(instruction);
+                dst.Add(Build(pair));
+                return;
             }
         }
-
-        var instructionsArray = _instructions.ToArray();
-
-        return new CompiledFunction(func.Key, func.ParentKey, instructionsArray);
-    }
-
-    private int GetBlockSize(ScriptCreationObject.Section func, int thisIndex)
-    {
-        var thisInstruction = func[thisIndex];
-        var thisIndentation = thisInstruction.Location.Indentation;
-
-        int nextIndex = thisIndex + 1;
-
-        while (nextIndex < func.Count)
-        {
-            var nextInstruction = func[nextIndex];
-            var nextIndentation = thisInstruction.Location.Indentation;
-
-            if (nextIndentation <= thisIndentation && !nextInstruction.IsEmpty)
-            {
-                break;
-            }
-
-            nextIndex += 1;
-        }
-
-        return nextIndex - thisIndex - 1;
-    }
-
-    private int[] GetBlockSizes(ScriptCreationObject.Section func)
-    {
-        int[] blockSize = new int[func.Count];
-
-        for (int i = 0; i < func.Count; i++)
-        {
-            blockSize[i] = GetBlockSize(func, i);
-        }
-
-        return blockSize;
+        throw new KeyNotFoundException();
     }
 }
